@@ -242,7 +242,7 @@
   // ------------------------------------------------------------------ online
   function loadOnline() {
     if (net.mod) return Promise.resolve(net.mod);
-    return import(new URL('js/online.js?v=1', location.href).href).then(mod => {
+    return import(new URL('js/online.js?v=2', location.href).href).then(mod => {
       net.mod = mod;
       net.room = mod.createOnline({ game: StrOnlineGame.game, gameId: 'stratego', botDelayMs: 700 });
       net.room.on('change', snap => {
