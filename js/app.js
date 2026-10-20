@@ -12,6 +12,20 @@
   const LEVELS = ['easy', 'medium', 'hard'];
   const LEVEL_NAME = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
 
+  // ------------------------------------------------------------------ sound & effects (js/fx.js + js/sfx.js)
+  const hasFX = typeof FX !== 'undefined' && typeof StrSfx !== 'undefined';
+  if (hasFX) {
+    FX.init({ game: 'stratego', accent: '#6ea8fe' });
+    // the board's own motion (sliding pieces, fight popup) follows the Animations switch and speed too
+    const motion = () => {
+      const s = FX.settings, h = document.documentElement;
+      h.classList.toggle('fx-still', !s.animations);
+      h.classList.toggle('fx-fast', s.animations && s.animSpeed === 'fast');
+    };
+    motion(); FX.onChange(motion);
+  }
+  const sfx = (name, o) => hasFX && StrSfx.play(name, o);
+
   // ------------------------------------------------------------------ saved store
   const DEFAULTS = {
     settings: { numbering: 'modern', prior: 'real', showOdds: true, scoutStrike: true, twoSq: 3, chase: true, aggressor: false, silent: false, name: '' },
@@ -89,7 +103,8 @@
   }
   document.addEventListener('click', e => {
     const q = e.target.closest('.q');
-    if (q) { e.stopPropagation(); pop(q, HELP[q.dataset.help] || ''); return; }
+    // the Sound & effects block opens its own "?"
+    if (q && !q.closest('.fx-set')) { e.stopPropagation(); pop(q, HELP[q.dataset.help] || ''); return; }
     if (!e.target.closest('.pop')) closePop();
   }, true);
   function confirmBox(text, yes, onYes) {
@@ -217,7 +232,7 @@
 
   function localAct(action) {
     try { E.apply(local.g, local.me, action); }
-    catch (e) { toast(e.message); return false; }
+    catch (e) { sfx('error'); toast(e.message); return false; }
     afterLocalChange();
     return true;
   }
@@ -254,7 +269,7 @@
   // ------------------------------------------------------------------ online
   function loadOnline() {
     if (net.mod) return Promise.resolve(net.mod);
-    return import(new URL('js/online.js?v=4', location.href).href).then(mod => {
+    return import(new URL('js/online.js?v=5', location.href).href).then(mod => {
       net.mod = mod;
       net.room = mod.createOnline({ game: StrOnlineGame.game, gameId: 'stratego', botDelayMs: 700 });
       net.room.on('change', snap => {
@@ -299,7 +314,7 @@
     const s = snapNow();
     if (!s) return;
     if (s.mode === 'local') return localAct(action);
-    net.room.act(action).then(r => { if (!r || !r.ok) toast((r && r.message) || 'Move not sent.'); });
+    net.room.act(action).then(r => { if (!r || !r.ok) { sfx('error'); toast((r && r.message) || 'Move not sent.'); } });
     return true;
   }
 
@@ -483,10 +498,11 @@
     if (c && c[0] === me) {
       const legal = legalFor(snap);
       ui.sel = ui.sel === sq || !legal.some(m => m[0] === sq) ? -1 : sq;
+      if (ui.sel === sq) sfx('click'); // piece picked up
       if (c && !legal.some(m => m[0] === sq) && snap.myTurn) {
         const r = (snap.mine.own.find(x => x[0] === c[1]) || [])[1];
-        if (r === E.BOMB || r === E.FLAG) toast(rankName(r) + 's never move.');
-        else if (r !== undefined) toast('That piece has no legal move (blocked, or the back-and-forth limit).');
+        if (r === E.BOMB || r === E.FLAG) { sfx('error'); toast(rankName(r) + 's never move.'); }
+        else if (r !== undefined) { sfx('error'); toast('That piece has no legal move (blocked, or the back-and-forth limit).'); }
       }
       ui.focus = -1;
     } else if (c) {
@@ -672,6 +688,12 @@
       }
       ui.lastHistLen = total;
     }
+    // sounds, shakes and celebrations for whatever changed since the last draw (local and online alike)
+    if (hasFX) StrSfx.observe({ pub, me, myTurn, mode: snap.mode }, {
+      board: () => boardEl,
+      sqEl: sq => boardEl && boardEl.querySelector('.cell[data-sq="' + sq + '"]'),
+      status: () => $('#g-status .turnchip'),
+    });
     // info + actions
     const info = infoHtml(snap, odds);
     const acts = actsHtml(snap);
@@ -917,19 +939,26 @@
     if (cell) {
       const k = +cell.dataset.k;
       const own = mySetup(variant);
-      if (su.sel < 0) { if (own[k] >= 0 || variant === 'barrage') su.sel = k; }
+      let swapped = null;
+      if (su.sel < 0) { if (own[k] >= 0 || variant === 'barrage') { su.sel = k; sfx('click'); } }
       else if (su.sel === k) su.sel = -1;
       else {
         [own[su.sel], own[k]] = [own[k], own[su.sel]];
+        swapped = [su.sel, k];
         su.sel = -1;
         save();
       }
       render();
+      if (swapped) { // both pieces set down on wood
+        sfx('place');
+        if (hasFX) swapped.forEach(j => { const el = $('#sugrid .sucell[data-k="' + j + '"]'); if (el && own[j] >= 0) FX.pop(el); });
+      }
       return;
     }
     const a = e.target.closest('[data-a]');
     if (!a || a.disabled) return;
     const rng = Math.random;
+    if (['real', 'shuffle', 'mirror'].includes(a.dataset.a)) sfx('slide'); // the whole army rearranged
     if (a.dataset.a === 'real') { store.setups[variant] = Bots.chooseSetup(variant, 'medium', rng); su.sel = -1; save(); render(); }
     if (a.dataset.a === 'shuffle') { store.setups[variant] = variant === 'barrage' ? Bots.barrageSetup(rng, false) : Bots.randomSetup('classic', rng); su.sel = -1; save(); render(); }
     if (a.dataset.a === 'mirror') { const o = mySetup(variant); store.setups[variant] = o.map((r, k) => o[Math.floor(k / 10) * 10 + 9 - (k % 10)]); save(); render(); }
@@ -939,7 +968,7 @@
   function runTest(variant) {
     const own = mySetup(variant).slice();
     let w;
-    try { w = new Worker('js/worker.js?v=3'); } catch (e) { toast('Testing needs a newer browser.'); return; }
+    try { w = new Worker('js/worker.js?v=4'); } catch (e) { toast('Testing needs a newer browser.'); return; }
     su.worker = w;
     su.test = { variant, key: own.join(''), wins: 0, losses: 0, draws: 0, done: 0, n: 24 };
     w.onmessage = ev => {
@@ -1195,6 +1224,7 @@
       '<div class="setrow"><div class="grow"><b>Odds on enemy pieces</b><span>Most likely rank and its % on each hidden piece</span></div>' + sw('showOdds', s.showOdds) + '</div>' +
       '<div class="setrow"><div class="grow"><b>Odds model</b><span>' + (s.prior === 'real' ? 'Real players' : 'Flat') + '</span></div>' + q('prior') + '</div>' +
       seg('prior', [['real', 'Real players'], ['flat', 'Flat']], s.prior) + '</div>' +
+      (hasFX ? '<div class="panel"><div class="label">Sound &amp; effects</div><div id="fx-box"></div></div>' : '') +
       '<div class="panel"><div class="label">Rules (new games)</div>' +
       '<div class="setrow"><div class="grow"><b>Scout moves and strikes</b><span>' + (s.scoutStrike ? 'Current rules' : 'Classic rules: stop first') + '</span></div>' + q('scout') + sw('scoutStrike', s.scoutStrike) + '</div>' +
       '<div class="setrow"><div class="grow"><b>Back-and-forth limit</b><span>Same two squares, moves in a row</span></div>' + q('twoSq') + '</div>' +
@@ -1205,6 +1235,7 @@
       '<div class="panel"><div class="setrow"><div class="grow"><b>Computer strength</b><span>Measured, not guessed</span></div>' + q('level') + '</div>' +
       '<div class="setrow"><div class="grow"><b>Your record</b><span>' + LEVELS.map(l => LEVEL_NAME[l] + ' ' + store.record[l][0] + '–' + store.record[l][1]).join(' · ') + '</span></div><button class="btn small" data-a="reset">Reset all</button></div></div>' +
       '<div class="ver">Stratego Lab · original art · rules from the Jumbo rulebook and ISF tournament rules · data: gravon.de archive · <a href="../">all games</a></div></div>';
+    if (hasFX) FX.renderSettings($('#fx-box'));
     v.onclick = e => {
       const b = e.target.closest('[data-seg] button');
       if (b) {

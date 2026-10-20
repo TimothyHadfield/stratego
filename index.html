@@ -267,6 +267,32 @@
   .setrow .grow span { font-size: 12.5px; color: var(--muted); }
   .ver { color: #59607a; font-size: 12px; text-align: center; }
   .ver a { color: #59607a; }
+
+  /* ------------------------------------------------ sound & effects (rows drawn by js/fx.js, matched to the rows above) */
+  .fx-set .fx-row { border-top: 0; padding: 0; min-height: 46px; }
+  .fx-set .fx-lab { font-weight: 650; }
+  .fx-set .fx-vol { flex: 1 1 150px; }
+  .fx-set .seg { flex: 0 0 180px; }
+  .fx-set .fx-why { padding: 0 0 6px; }
+  .fx-set .switch { width: 48px; height: 28px; }
+  .fx-set .switch span { background: #2f3548; border-radius: 14px; }
+  .fx-set .switch span::after { width: 22px; height: 22px; }
+  .fx-set .switch input:checked + span { background: var(--accent); }
+  .fx-set .switch input:checked + span::after { transform: translateX(20px); }
+  .fx-set .seg { background: none; border: 0; padding: 0; gap: 6px; }
+  .fx-set .seg button { flex: 1; min-height: 42px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 10px; color: inherit; font-weight: 650; font-size: 14px; padding: 3px 6px; cursor: pointer; }
+  .fx-set .seg button[aria-pressed="true"] { background: rgba(110,168,254,.14); border-color: var(--accent); color: var(--accent); }
+  .fx-set .q { width: 20px; height: 20px; font-size: 12px; background: var(--bg-soft); }
+  .fx-set .fx-test { min-height: 40px; padding: 0 12px; font-size: 13.5px; border-radius: 9px; background: var(--card); cursor: pointer; }
+  /* Animations off: the board's own motion is instant too; Fast: about half as long */
+  .fx-still .pc, .fx-still .sucell, .fx-still .bwrap, .fx-still .pbar i, .fx-still .switch span, .fx-still .switch span::after { transition: none !important; }
+  .fx-still .fight, .fx-still .fight .fp, .fx-still .toast, .fx-still .confirm-back, .fx-still .pc.focus::before { animation-duration: 0s !important; animation-delay: 0s !important; }
+  .fx-still .turnchip .dot.pulse { animation: none; }
+  .fx-fast .pc { transition-duration: .14s, .14s, .16s, .08s; }
+  .fx-fast .sucell { transition-duration: .12s; }
+  .fx-fast .fight { animation-duration: .12s; }
+  .fx-fast .fight .fp.lose { animation-duration: .25s; animation-delay: .19s; }
+  .fx-fast .fight .fp.win { animation-duration: .22s; animation-delay: .17s; }
 </style>
 </head>
 <body>
@@ -285,13 +311,15 @@
   <section class="view" id="v-settings"></section>
 </div>
 
-<script src="js/engine.js?v=3"></script>
-<script src="js/data.js?v=3"></script>
-<script src="js/odds.js?v=3"></script>
-<script src="js/bots.js?v=3"></script>
-<script src="js/online-game.js?v=3"></script>
-<script src="js/strength-data.js?v=3"></script>
-<script src="js/art.js?v=3"></script>
-<script src="js/app.js?v=3"></script>
+<script src="js/engine.js?v=4"></script>
+<script src="js/data.js?v=4"></script>
+<script src="js/odds.js?v=4"></script>
+<script src="js/bots.js?v=4"></script>
+<script src="js/online-game.js?v=4"></script>
+<script src="js/strength-data.js?v=4"></script>
+<script src="js/art.js?v=4"></script>
+<script src="js/fx.js?v=4"></script>
+<script src="js/sfx.js?v=4"></script>
+<script src="js/app.js?v=4"></script>
 </body>
 </html>
