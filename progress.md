@@ -1,7 +1,7 @@
 # Stratego Lab — progress
 
 ## START HERE
-Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-20 (sound & effects).
+Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-20 (real-table look, live c7bd335).
 
 ## Goal right now
 Tim's words (2026-10-20): "add risk, clue, battleship, connect four, stratego, clue, checkers, pandemic, splendor, king of tokyo, 7 wonders, and evolution to the list of games." This is the Stratego one: exact rules, odds for hidden pieces, setup analyzer, measured computers, study mode, online seats.
@@ -19,6 +19,7 @@ Tim's words (2026-10-20): "add risk, clue, battleship, connect four, stratego, c
 | Settings | Done |
 | Online (shared `_online`) | Done; two-browser test passes locally (WebKit) |
 | Sound & effects (2026-10-20) | Done: shared `js/fx.js` 1.0.3 (copy, never edit) + game-local `js/sfx.js`; "Sound & effects" panel in Settings; `tests/sfx.test.js` 7 tests |
+| Real-table look (2026-10-20, c7bd335) | Done: Play tab on a wood table (shared kit `css/table.css` + `js/table.js`, byte copies of `_table`); folding board with printed end margins where each side's removed pieces lie in rank stacks (theirs far, yours near), gold rule, centre fold, meadow print, irregular ponds; pieces are standing slabs (top edge, face toward owner, shadow; red printed gold, blue silver; enemy = plain back with emblem); fight turns the enemy piece round in 3-D; laptop board tilted back 11° (perspective); new phone-landscape layout (board left, panels right) for Play and Setup |
 | Visual design pass (2026-10-20) | Done: bevelled pieces, board frame glows on your turn, readable odds badges (scale with the board), tapped enemy piece ringed, odds bars scaled to the top value with % labels, fight popup knocks the loser over, lakes without grid lines, laptop duplicate army panel removed, 40px tap targets, Study phone board 240→263 px |
 
 ## Measured strength (2026-10-20)
@@ -28,6 +29,7 @@ Barrage, 500 each (re-measured after the Flag-lane setup fix): Hard–Medium 53.
 ## Standing instructions (Tim's words)
 - "add risk, clue, battleship, connect four, stratego, ... to the list of games." (2026-10-20)
 - "add opptional sounds you can add to the games that reflect what's happening in the game accurately as well as win celebrations, and other fun annimations to go along with everything. Just make sure everything is customizable in the settings so the user can play as preffered." (2026-10-20)
+- "could you also make sure that each of the games also have a look to them so that the game (either board or card layout) looks almost identical to how the board or card layout looks like in real life ... It should look kind of like you're looking through a camera that is connected to a user's glasses that is playing in real life (not actually, but the layout and style of everything should be similar)." (2026-10-20)
 - Global rules apply: $0, no permission prompts, background-only testing, design-taste (no page scroll on main screens, phone bottom tabs, short labels, "?" explains why, choices in Settings).
 
 ## Traps
@@ -40,7 +42,11 @@ Barrage, 500 each (re-measured after the Flag-lane setup fix): Hard–Medium 53.
 - Finished games are told apart by `gid` (made in `E.newGame`, shown in `publicView`); never key on layouts or move count again (back-to-back resigns collided).
 - `render()` catches a failed draw and drops only the saved part that tab was showing (local game, last game, or one setup). Keep new tabs inside it.
 - Game buttons ignore a tap on a *different* button within 500 ms (Ready turns into Resign under the finger). Test scripts must wait >500 ms between them.
-- Bump every `?v=` (index.html, worker.js, the Worker URL and the online import) on each push. Now at v=4 (online import v=5).
+- Bump every `?v=` (index.html, worker.js, the Worker URL and the online import) on each push. Now at v=5 (online import v=6).
+- `js/fx.js`, `js/table.js`, `css/table.css` are byte copies of `_fx` / `_table`; `.gitattributes` marks them `-text`. After a merge on Windows the main checkout of fx.js can still be CRLF: `cmp` against the source and re-copy (git sees no change).
+- The game board sits in `.bframe` (printed margins `--fe` ends / `--fs` sides, read by `sizeBoard`); on laptop the frame is tilted and pulled up by a negative margin that `sizeBoard` adds back as height. Phone landscape (`LANDSCAPE` media query, max-height 540) has its own sizeBoard branch.
+- Headless WebKit on Windows draws the laptop tilt flat (no foreshortening); Chrome draws it right. Screenshot the tilt with `--engine chrome`.
+- Fight popup screenshots: WebKit is too slow to catch it; use `--engine chrome` and shoot ~110–330 ms after the attacking tap.
 - Odds badges size with `cqw` units: `.bwrap` is a size container. Keep its width/height set by `sizeBoard`.
 - Laptop `#info-side` has a fixed height (132 px) so tapping a piece never moves the army/moves panels; its idle state is the dashed "Tap a piece" slot.
 
@@ -84,6 +90,7 @@ Opponent sounds play at 0.85 volume. Fast = 0.55× delays; Animations off = soun
 - Fight popup motion and the turn glow checked only in WebKit headless screenshots, not on a real iPhone.
 - In Barrage, Hard is not clearly stronger than Medium (53.2% ±4.4).
 - Sound & effects: nothing was heard (headless WebKit on Windows has no Web Audio); checked by spying on `FX.play` in node and in WebKit. How the custom `clash`/`defuse`/`deploy` sounds actually sound, and the iPhone silent switch, need Tim's ears. Online sounds checked only through the shared snapshot path in node, not in two live browsers.
+- Real-table look: laptop tilt checked only in Chrome headless (WebKit headless renders it flat; real Safari not seen). Phone board shrank 367→330 px at 393 px (the board margins hold the removed pieces); at 659×393 landscape the board is ~231 px (before: page cut off). Removed-piece stacks are small on phone (~14 px). Choices Tim didn't make: dark wood table; removed pieces in the board's end margins (not on the table beside it); no seat name on the board; no tilt on phone (tap size); new-game/lobby screens stay plain dark; fight popup kept as a card.
 - Choices Tim didn't make: no turn chime vs the computer; "big" moment only for your own Spy-takes-Marshal; draw gets no celebration; Settings panel placed after Display.
 
 ## Rejected / parked

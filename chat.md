@@ -1,5 +1,11 @@
 # Stratego Lab — session log
 
+## 2026-10-20 — real-table look (builder under the games manager)
+- **Asked:** Tim: "make sure that each of the games also have a look to them so that the game ... looks almost identical to how the board or card layout looks like in real life ... like you're looking through a camera that is connected to a user's glasses". No rules changes; `js/online.js` untouched.
+- **Built:** shared `_table` kit copied in (`css/table.css`, `js/table.js`), fx.js re-copied, `.gitattributes`; wood table under Play; `.bframe` folding board with printed end margins holding each side's removed pieces (`graveHtml`, `Art.flat`); standing-slab pieces (gold/silver print), meadow board with ponds and centre fold (`js/art.js`); 3-D turn of the enemy piece in the fight popup; laptop tilt; phone-landscape layouts for Play and Setup; `?v=5`.
+- **Verified:** engine 12, odds 5, sfx 7, online 5 pass; two-browser online test passes (WebKit); WebKit 393 px + 1440 px before/after of setup, mid, selected, late, over, setup tab, study (0 console errors, no overflow); widths 320×568, 393×659, 659×393, 1280×800 no overflow (659×393 overflowed before); fight turn measured (rotateY 180→0); Effects speed Fast changes only fx speed; two read-only review rounds. Live c7bd335 checked at 393 px. Screenshots: manager scratchpad `table/stratego/{before,after}`.
+- **Open:** see progress.md NOT verified.
+
 ## 2026-10-20 — first build (builder agent under the games manager)
 - **Asked:** Tim: "add risk, clue, battleship, connect four, stratego, clue, checkers, pandemic, splendor, king of tokyo, 7 wonders, and evolution to the list of games." Brief: exact rules, odds layer, setup analyzer, measured computers, study mode, online seats via `_online`.
 - **Decided:** Jumbo 2022 / ISF rules by default; classic-rules Scout and limit 5 as settings; revealed ranks stay visible.
