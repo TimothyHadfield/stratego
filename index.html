@@ -8,6 +8,7 @@
 <meta name="theme-color" content="#0f1117">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="css/table.css?v=5">
 <style>
   :root {
     --bg: #0f1117; --bg-soft: #161923; --card: #1a1e2b; --line: #2a3042;
@@ -293,6 +294,75 @@
   .fx-fast .fight { animation-duration: .12s; }
   .fx-fast .fight .fp.lose { animation-duration: .25s; animation-delay: .19s; }
   .fx-fast .fight .fp.win { animation-duration: .22s; animation-delay: .17s; }
+
+  /* ------------------------------------------------ the real table (css/table.css surface + the folding board) */
+  #v-play:not(:has(#game)) { background: var(--bg); }
+  #v-play .panel, #v-play .info { background: rgba(18, 20, 28, .84); border-color: rgba(255, 255, 255, .07); box-shadow: 0 6px 18px rgba(0, 0, 0, .3); }
+  #v-play .gacts .btn { background: rgba(18, 20, 28, .84); border-color: rgba(255, 255, 255, .1); }
+  #v-play .gacts .btn.primary { background: var(--accent); border-color: var(--accent); }
+  #v-play .gacts .btn.ghost { background: rgba(18, 20, 28, .55); color: #c9cbd4; }
+  #v-play .icon-btn { background: rgba(18, 20, 28, .8); border-color: rgba(255, 255, 255, .1); }
+  #v-play .icon-btn[aria-pressed="true"] { border-color: var(--accent); background: rgba(30, 44, 70, .9); }
+  #v-play .turnchip { text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
+  #v-play .turnchip .sub { color: #d9cdb8; }
+  #v-play .scroll.fade { -webkit-mask-image: linear-gradient(#000 calc(100% - 22px), transparent); }
+  /* the board: printed dark-green border, gold rule round the field, the board's thickness and its shadow on the wood */
+  .bframe { --fe: 20px; --fs: 4px; position: relative; display: flex; flex-direction: column; align-items: center; padding: 0 var(--fs); border-radius: 5px;
+    background: linear-gradient(180deg, #23421f, #1d3a1b 50%, #23421f);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), inset 0 0 0 1px rgba(0, 0, 0, .35), 0 3px 0 #0f1f0d, 0 4px 0 rgba(0, 0, 0, .4), 0 14px 26px rgba(0, 0, 0, .55); }
+  .bframe .bwrap { border-radius: 2px; border-color: #b9994f; box-shadow: 0 0 0 1px rgba(0, 0, 0, .45); }
+  .bframe .bwrap.turn-0 { border-color: #c95a4c; box-shadow: 0 0 0 1px rgba(201,71,61,.35), 0 0 26px 3px rgba(224,87,75,.42); }
+  .bframe .bwrap.turn-1 { border-color: #5a86d6; box-shadow: 0 0 0 1px rgba(59,111,212,.35), 0 0 26px 3px rgba(91,143,240,.42); }
+  /* removed pieces lying in each player's margin, small stacks by rank */
+  .grave { height: var(--fe); width: 100%; display: flex; align-items: center; gap: 6px; padding: 0 3px; min-width: 0; overflow: hidden; }
+  .grave .gl { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; justify-content: flex-end; }
+  .grave.near .gl { justify-content: flex-start; }
+  .grave .seat { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 700; color: #d6caa2; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; flex: none; }
+  .grave .seat i { width: 7px; height: 7px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0, 0, 0, .4); }
+  .gs { position: relative; flex: none; height: calc(var(--fe) - 6px); aspect-ratio: 30 / 40; margin-right: 3px; }
+  .gs i { position: absolute; inset: 0; transform: translate(calc(var(--i) * 1.5px), calc(var(--i) * -1.5px)); }
+  .gs i:nth-child(2) { z-index: -1; } .gs i:nth-child(3) { z-index: -2; }
+  .gs { isolation: isolate; }
+  .gs svg { width: 100%; height: 100%; display: block; }
+  .gs b { position: absolute; left: calc(100% + 3px); bottom: -1px; z-index: 2; font-size: 10px; line-height: 1; font-weight: 800; color: #eadfbd; text-shadow: 0 1px 1px rgba(0, 0, 0, .8); font-variant-numeric: tabular-nums; }
+  .gs:has(b) { margin-right: 11px; }
+  @media (min-width: 900px) {
+    .bframe { --fe: 54px; --fs: 14px; border-radius: 8px; margin-top: -56px; }
+    .gs { height: calc(var(--fe) - 18px); }
+    .grave { gap: 10px; padding: 0 2px; }
+    .grave .gl { gap: 9px; }
+    .grave .seat { font-size: 12px; }
+    .gs b { font-size: 12px; }
+    .gs:has(b) { margin-right: 14px; }
+    /* the board lies on the table in front of you: its far end a little further away */
+    .bframe { transform: perspective(1500px) rotateX(11deg); transform-origin: 50% 100%; }
+  }
+  /* pieces stand on the board: picking one up lifts it, a taken one is lifted off */
+  .pc.sel { transform: translateY(-9%) scale(1.1); filter: drop-shadow(0 0 4px rgba(240,179,84,.95)) drop-shadow(0 7px 5px rgba(0,0,0,.5)); }
+  .pc.gone { opacity: 0; transform: translateY(-22%) scale(1.12); }
+  /* fight: the enemy piece turns round to show its rank, then the loser falls */
+  .fight { background: rgba(14, 16, 22, .9); }
+  .fight .fp.turn { perspective: 300px; }
+  .fight .fp .fl { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; animation: turnup .3s ease-out both; }
+  .fight .fp .ff, .fight .fp .fb { position: absolute; inset: 0; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+  .fight .fp .fb { transform: rotateY(180deg); }
+  @keyframes turnup { from { transform: rotateY(180deg); } to { transform: rotateY(0deg); } }
+  .fx-still .fight .fp .fl { animation: none; }
+  .fx-fast .fight .fp .fl { animation-duration: .17s; }
+  @media (max-width: 359px) { .bframe { --fe: 16px; --fs: 3px; } }
+  /* a phone on its side: board on the left, the panels beside it */
+  @media (max-width: 899px) and (orientation: landscape) and (max-height: 540px) {
+    #game { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; gap: 6px 12px; }
+    .gstatus { grid-column: 1 / 3; }
+    .boardcol { grid-column: 1; grid-row: 2 / 4; align-items: flex-start; }
+    #info-phone { grid-column: 2; grid-row: 2; height: auto; min-height: 0; overflow: auto; }
+    #acts-phone { grid-column: 2; grid-row: 3; }
+    .su { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); gap: 6px 12px; }
+    .su .su-head, .su .su-grid, .su .su-tools { grid-column: 1; }
+    .su .su-side { grid-column: 2; grid-row: 1 / 4; min-height: 0; overflow-y: auto; }
+  }
+  /* setup tab grid: the same printed meadow */
+  .sugrid { background: #4f7f3c; border-color: #b9994f; }
 </style>
 </head>
 <body>
@@ -305,21 +375,22 @@
     <button data-tab="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Settings</button>
   </nav>
 
-  <section class="view on" id="v-play"></section>
+  <section class="view on tbl-surface tbl-wood-dark" id="v-play"></section>
   <section class="view" id="v-setup"></section>
   <section class="view" id="v-study"></section>
   <section class="view" id="v-settings"></section>
 </div>
 
-<script src="js/engine.js?v=4"></script>
-<script src="js/data.js?v=4"></script>
-<script src="js/odds.js?v=4"></script>
-<script src="js/bots.js?v=4"></script>
-<script src="js/online-game.js?v=4"></script>
-<script src="js/strength-data.js?v=4"></script>
-<script src="js/art.js?v=4"></script>
-<script src="js/fx.js?v=4"></script>
-<script src="js/sfx.js?v=4"></script>
-<script src="js/app.js?v=4"></script>
+<script src="js/engine.js?v=5"></script>
+<script src="js/data.js?v=5"></script>
+<script src="js/odds.js?v=5"></script>
+<script src="js/bots.js?v=5"></script>
+<script src="js/online-game.js?v=5"></script>
+<script src="js/strength-data.js?v=5"></script>
+<script src="js/art.js?v=5"></script>
+<script src="js/fx.js?v=5"></script>
+<script src="js/table.js?v=5"></script>
+<script src="js/sfx.js?v=5"></script>
+<script src="js/app.js?v=5"></script>
 </body>
 </html>

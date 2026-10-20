@@ -269,7 +269,7 @@
   // ------------------------------------------------------------------ online
   function loadOnline() {
     if (net.mod) return Promise.resolve(net.mod);
-    return import(new URL('js/online.js?v=5', location.href).href).then(mod => {
+    return import(new URL('js/online.js?v=6', location.href).href).then(mod => {
       net.mod = mod;
       net.room = mod.createOnline({ game: StrOnlineGame.game, gameId: 'stratego', botDelayMs: 700 });
       net.room.on('change', snap => {
@@ -355,21 +355,40 @@
     pcEls.clear();
     boardSeat = me;
     host.innerHTML = '';
-    host.appendChild(boardEl);
+    // the folding board lying on the table: printed margins at both players' ends, where each
+    // side's removed pieces are laid out (theirs on the far end, yours on the near end)
+    const frame = document.createElement('div');
+    frame.className = 'bframe';
+    frame.innerHTML = '<div class="grave far" id="grave-far"></div>';
+    frame.appendChild(boardEl);
+    frame.insertAdjacentHTML('beforeend', '<div class="grave near" id="grave-near"></div>');
+    host.appendChild(frame);
     boardEl.addEventListener('click', onBoardClick);
     sizeBoard();
     return boardEl;
   }
+  const LANDSCAPE = window.matchMedia('(max-width: 899px) and (orientation: landscape) and (max-height: 540px)');
   function sizeBoard() {
     // the board is as big as the space allows (square)
     document.querySelectorAll('.boardcol').forEach(col => {
       const b = col.querySelector('.bwrap');
       if (!b) return;
       const wide = window.innerWidth >= 900;
+      // the game board sits in a frame: printed margins at both ends (--fe) and the sides (--fs)
+      const fr = b.parentElement.classList.contains('bframe') ? getComputedStyle(b.parentElement) : null;
+      const ex = fr ? 2 * (parseFloat(fr.getPropertyValue('--fe')) || 0) : 0;
+      const sx = fr ? 2 * (parseFloat(fr.getPropertyValue('--fs')) || 0) : 0;
       let size;
       if (wide) {
         const top = col.getBoundingClientRect().top;
-        size = Math.min(window.innerHeight - top - 20, window.innerWidth - 400 - 80);
+        // a tilted board (laptop) is pulled up by a negative margin: its far end looks further away, so it can be taller
+        const lift = fr ? -(parseFloat(fr.marginTop) || 0) : 0;
+        size = Math.min(window.innerHeight - top - 20 - ex + lift, window.innerWidth - 400 - 80 - sx);
+      } else if (col.id === 'g-board' && LANDSCAPE.matches) {
+        // a phone on its side: the board on the left under the status line, the panels on the right
+        const parent = col.parentElement;
+        const top = col.getBoundingClientRect().top - parent.getBoundingClientRect().top;
+        size = Math.min(parent.clientHeight - top - 2 - ex, parent.clientWidth * 0.6 - sx);
       } else {
         // the board gets the height its column-mates leave free (a part marked data-min counts as that height)
         const parent = col.parentElement;
@@ -380,9 +399,9 @@
           n++;
         }
         const avail = parent.clientHeight - used - (parseFloat(getComputedStyle(parent).rowGap) || 0) * n - 2;
-        size = Math.min(col.clientWidth || window.innerWidth - 24, avail);
+        size = Math.min((col.clientWidth || window.innerWidth - 24) - sx, avail - ex);
       }
-      size = Math.max(240, Math.floor(size));
+      size = Math.max(col.id === 'g-board' && LANDSCAPE.matches && !wide ? 160 : 240, Math.floor(size));
       b.style.width = size + 'px';
       b.style.height = size + 'px';
     });
@@ -467,8 +486,11 @@
     const cls = out === 'both' ? '' : (out === 'att') === attMine ? 'ok' : 'no';
     // the losing piece gets knocked over, the winner swells a little (both lose when equal)
     const attCls = out === 'att' ? 'win' : 'lose', defCls = out === 'def' ? 'win' : 'lose';
-    fx.innerHTML = '<div class="fight"><div class="fp ' + attCls + '">' + Art.piece(h.s, ar, store.settings.numbering) + '</div><div class="vs"><div class="' + cls + '">' + word + '</div><div class="muted" style="font-size:11px;font-weight:600">' +
-      esc(rankName(ar)) + ' hit ' + esc(dr === null ? 'a hidden piece' : rankName(dr)) + '</div></div><div class="fp ' + defCls + '">' + Art.piece(1 - h.s, dr, store.settings.numbering) + '</div></div>';
+    // the enemy piece is turned round to show its rank (a 3-D turn from its plain back), like at the table
+    const fp = (side, r, c) => side === me ? '<div class="fp ' + c + '">' + Art.piece(side, r, store.settings.numbering) + '</div>'
+      : '<div class="fp turn ' + c + '"><div class="fl"><div class="ff">' + Art.piece(side, r, store.settings.numbering) + '</div><div class="fb">' + Art.piece(side, null) + '</div></div></div>';
+    fx.innerHTML = '<div class="fight">' + fp(h.s, ar, attCls) + '<div class="vs"><div class="' + cls + '">' + word + '</div><div class="muted" style="font-size:11px;font-weight:600">' +
+      esc(rankName(ar)) + ' hit ' + esc(dr === null ? 'a hidden piece' : rankName(dr)) + '</div></div>' + fp(1 - h.s, dr, defCls) + '</div>';
     ui.fight = setTimeout(() => { fx.innerHTML = ''; ui.fight = null; }, 1250);
   }
 
@@ -688,6 +710,10 @@
       }
       ui.lastHistLen = total;
     }
+    // removed pieces lie face up in each player's margin of the board, sorted by rank
+    const far = 1 - (me < 0 ? 0 : me), near = me < 0 ? 0 : me;
+    setHTML($('#grave-far'), graveHtml(pub, far, ''));
+    setHTML($('#grave-near'), graveHtml(pub, near, ''));
     // sounds, shakes and celebrations for whatever changed since the last draw (local and online alike)
     if (hasFX) StrSfx.observe({ pub, me, myTurn, mode: snap.mode }, {
       board: () => boardEl,
@@ -706,6 +732,18 @@
     setHTML($('#army-side'), wide ? armyHtml(snap, odds) : '');
     setHTML($('#log-side'), wide ? logHtml(pub, me) : '');
     sizeBoard();
+  }
+  /** One side's removed pieces as small stacks lying beside the board (highest rank first). */
+  function graveHtml(pub, side, name) {
+    const order = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 11, 0];
+    const n = {};
+    let hidden = 0;
+    for (const [o, , r] of pub.dead || []) if (o === side) { if (r === null) hidden++; else n[r] = (n[r] || 0) + 1; }
+    const stack = (r, k) => '<span class="gs" title="' + (r === null ? 'hidden' : esc(rankName(r))) + ' ×' + k + '">' +
+      Array.from({ length: Math.min(k, 3) }, (_, i) => '<i style="--i:' + i + '">' + Art.flat(side, r, store.settings.numbering) + '</i>').join('') +
+      (k > 1 ? '<b>' + k + '</b>' : '') + '</span>';
+    const html = order.filter(r => n[r]).map(r => stack(r, n[r])).join('') + (hidden ? stack(null, hidden) : '');
+    return (name ? '<span class="seat"><i style="background:' + (side ? 'var(--blue)' : 'var(--red)') + '"></i>' + esc(name) + '</span>' : '') + '<span class="gl">' + html + '</span>';
   }
   const oneHot = r => { const a = new Float64Array(12); a[r] = 1; return a; };
   function truthFromLayouts(layouts) {
@@ -968,7 +1006,7 @@
   function runTest(variant) {
     const own = mySetup(variant).slice();
     let w;
-    try { w = new Worker('js/worker.js?v=4'); } catch (e) { toast('Testing needs a newer browser.'); return; }
+    try { w = new Worker('js/worker.js?v=5'); } catch (e) { toast('Testing needs a newer browser.'); return; }
     su.worker = w;
     su.test = { variant, key: own.join(''), wins: 0, losses: 0, draws: 0, done: 0, n: 24 };
     w.onmessage = ev => {
