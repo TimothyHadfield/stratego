@@ -61,15 +61,20 @@
     const c = SIDE[side];
     let inner;
     if (r === null || r === undefined || r < 0) {
-      // the back of a piece: a plain shield
-      inner = '<path d="M20 11 L28 14 V21 C28 26 24.5 29.5 20 31 C15.5 29.5 12 26 12 21 V14 Z" fill="none" stroke="' + c.light + '" stroke-width="1.8" opacity=".75"/>';
+      // the back of a piece: an embossed shield
+      inner = '<path d="M20 10.5 L28.5 13.8 V21 C28.5 26.2 24.8 29.8 20 31.5 C15.2 29.8 11.5 26.2 11.5 21 V13.8 Z" fill="' + c.dark + '" opacity=".35"/>' +
+        '<path d="M20 10.5 L28.5 13.8 V21 C28.5 26.2 24.8 29.8 20 31.5 C15.2 29.8 11.5 26.2 11.5 21 V13.8 Z" fill="none" stroke="' + c.light + '" stroke-width="1.7" stroke-linejoin="round" opacity=".8"/>';
     } else {
       const lab = E.label(r, numbering);
       const small = r === E.FLAG || r === E.BOMB;
-      inner = glyph(r, c.ink) + (small ? '' : '<text x="4.5" y="11.5" font-size="10.5" font-weight="800" fill="' + c.ink + '" font-family="system-ui,-apple-system,Segoe UI,sans-serif">' + lab + '</text>');
+      inner = glyph(r, c.ink) + (small ? '' : '<text x="4.5" y="12" font-size="11" font-weight="850" fill="' + c.ink + '" font-family="system-ui,-apple-system,Segoe UI,sans-serif">' + lab + '</text>');
     }
+    // a wooden-block look without gradients (no ids, so hundreds of copies on a page stay safe):
+    // dark base edge, the face, a soft top light and a thin shine line
     return '<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="1.5" y="1.5" width="37" height="37" rx="6" fill="' + c.dark + '"/>' +
-      '<rect x="2.5" y="2.5" width="35" height="33" rx="5" fill="' + c.face + '"/>' + inner + '</svg>';
+      '<rect x="2.5" y="2.5" width="35" height="33" rx="5" fill="' + c.face + '"/>' +
+      '<path d="M7.5 2.5 H32.5 A5 5 0 0 1 37.5 7.5 V15 H2.5 V7.5 A5 5 0 0 1 7.5 2.5 Z" fill="#fff" opacity=".09"/>' +
+      '<rect x="6" y="3.4" width="28" height="1.1" rx=".55" fill="#fff" opacity=".28"/>' + inner + '</svg>';
   }
 
   /** The board: grass squares and two lakes (drawn once as the background of the board). */
@@ -80,15 +85,15 @@
       if (E.IS_LAKE[i]) continue;
       s += '<rect x="' + x + '" y="' + y + '" width="10" height="10" fill="' + ((i + Math.floor(i / 10)) % 2 ? '#2f4a33' : '#33503a') + '"/>';
     }
+    // faint grid lines, then the lakes on top so no line cuts through the water
+    for (let k = 1; k < 10; k++) s += '<path d="M' + k * 10 + ' 0 V100 M0 ' + k * 10 + ' H100" stroke="#1d2e21" stroke-width=".25"/>';
     for (const [x, y] of [[20, 40], [60, 40]]) {
-      s += '<rect x="' + (x + 0.6) + '" y="' + (y + 0.6) + '" width="18.8" height="18.8" rx="3" fill="#1f5a7e"/>';
-      for (let k = 0; k < 3; k++) {
+      s += '<rect x="' + x + '" y="' + y + '" width="20" height="20" fill="#1a2a1e"/>';
+      s += '<rect x="' + (x + 0.6) + '" y="' + (y + 0.6) + '" width="18.8" height="18.8" rx="3" fill="#1f5a7e"/>';      for (let k = 0; k < 3; k++) {
         const yy = y + 5 + k * 5;
         s += '<path d="M' + (x + 4) + ' ' + yy + ' q2.5 -1.6 5 0 t5 0" fill="none" stroke="#5fa3c9" stroke-width=".7" stroke-linecap="round" opacity=".8"/>';
       }
     }
-    // faint grid lines
-    for (let k = 1; k < 10; k++) s += '<path d="M' + k * 10 + ' 0 V100 M0 ' + k * 10 + ' H100" stroke="#1d2e21" stroke-width=".25"/>';
     return s + '</svg>';
   }
 

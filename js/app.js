@@ -254,7 +254,7 @@
   // ------------------------------------------------------------------ online
   function loadOnline() {
     if (net.mod) return Promise.resolve(net.mod);
-    return import(new URL('js/online.js?v=3', location.href).href).then(mod => {
+    return import(new URL('js/online.js?v=4', location.href).href).then(mod => {
       net.mod = mod;
       net.room = mod.createOnline({ game: StrOnlineGame.game, gameId: 'stratego', botDelayMs: 700 });
       net.room.on('change', snap => {
@@ -410,7 +410,7 @@
       if (o !== me && rank === null && odds && odds.byId[id] && opts.showOdds) {
         const p = odds.byId[id];
         let best = 0; for (let k = 1; k < 12; k++) if (p[k] > p[best]) best = k;
-        badge = '<span class="badge">' + lab(best) + ' ' + Math.round(p[best] * 100) + '</span>';
+        badge = '<span class="badge"><b>' + lab(best) + '</b>' + Math.round(p[best] * 100) + '</span>';
       }
       if (opts.badges && opts.badges[sq] !== undefined) {
         const b = opts.badges[sq];
@@ -422,6 +422,7 @@
       el.classList.remove('gone');
       placeStyle(el, sq, me);
       el.classList.toggle('sel', sq === opts.sel);
+      el.classList.toggle('focus', id === opts.focus);
     });
     for (const [id, el] of pcEls) {
       if (!seen.has(id)) {
@@ -449,8 +450,10 @@
     const out = h.b.out;
     const word = out === 'both' ? 'Both lost' : (out === 'att') === attMine ? 'You win' : 'You lose';
     const cls = out === 'both' ? '' : (out === 'att') === attMine ? 'ok' : 'no';
-    fx.innerHTML = '<div class="fight"><div class="fp">' + Art.piece(h.s, ar, store.settings.numbering) + '</div><div class="vs"><div class="' + cls + '">' + word + '</div><div class="muted" style="font-size:11px;font-weight:600">' +
-      esc(rankName(ar)) + ' hit ' + esc(dr === null ? 'a hidden piece' : rankName(dr)) + '</div></div><div class="fp">' + Art.piece(1 - h.s, dr, store.settings.numbering) + '</div></div>';
+    // the losing piece gets knocked over, the winner swells a little (both lose when equal)
+    const attCls = out === 'att' ? 'win' : 'lose', defCls = out === 'def' ? 'win' : 'lose';
+    fx.innerHTML = '<div class="fight"><div class="fp ' + attCls + '">' + Art.piece(h.s, ar, store.settings.numbering) + '</div><div class="vs"><div class="' + cls + '">' + word + '</div><div class="muted" style="font-size:11px;font-weight:600">' +
+      esc(rankName(ar)) + ' hit ' + esc(dr === null ? 'a hidden piece' : rankName(dr)) + '</div></div><div class="fp ' + defCls + '">' + Art.piece(1 - h.s, dr, store.settings.numbering) + '</div></div>';
     ui.fight = setTimeout(() => { fx.innerHTML = ''; ui.fight = null; }, 1250);
   }
 
@@ -598,7 +601,7 @@
     if (!pub) { v.innerHTML = '<div class="setup"><div class="panel">Connecting…</div></div>'; resetBoard(); return; }
     if (!v.querySelector('#game')) {
       v.innerHTML = '<div id="game"><div class="gstatus" id="g-status"></div><div class="boardcol" id="g-board"></div>' +
-        '<div class="side" id="g-side"><div class="panel" id="info-side"></div><div class="panel" id="army-side"></div><div class="panel logbox"><div class="label">Moves</div><div class="scroll" id="log-side" style="margin-top:6px"></div></div><div class="gacts" id="acts-side"></div></div>' +
+        '<div class="side" id="g-side"><div class="panel" id="info-side"></div><div class="panel" id="army-side"></div><div class="panel logbox"><div class="label">Moves</div><div class="scroll fade" id="log-side" style="margin-top:6px"></div></div><div class="gacts" id="acts-side"></div></div>' +
         '<div class="info" id="info-phone"></div><div class="gacts" id="acts-phone"></div></div>';
       resetBoard();
       v.onclick = onGameButtons;
@@ -619,7 +622,10 @@
       sub = lastMoveText(pub, me);
     }
     const color = me >= 0 ? (me ? 'var(--blue)' : 'var(--red)') : 'var(--muted)';
-    setHTML($('#g-status'), '<div class="turnchip"><span class="dot" style="background:' + (pub.phase === 'play' ? (pub.turn ? 'var(--blue)' : 'var(--red)') : color) + '"></span><span>' + status + '</span><span class="sub">' + esc(sub) + '</span></div>' +
+    const waiting = pub.phase === 'play' && !myTurn;
+    bw.classList.toggle('turn-0', pub.phase === 'play' && myTurn && me === 0);
+    bw.classList.toggle('turn-1', pub.phase === 'play' && myTurn && me === 1);
+    setHTML($('#g-status'), '<div class="turnchip' + (pub.phase === 'play' && myTurn ? ' mine' : '') + '"><span class="dot' + (waiting ? ' pulse' : '') + '" style="background:' + (pub.phase === 'play' ? (pub.turn ? 'var(--blue)' : 'var(--red)') : color) + '"></span><span class="st">' + status + '</span><span class="sub">' + esc(sub) + '</span></div>' +
       (snap.mode === 'online' && snap.code ? '<span class="muted" style="font-size:12px">' + esc(snap.code) + '</span>' : '') +
       (pub.phase === 'play' ? '<button class="icon-btn" data-a="odds" aria-pressed="' + store.settings.showOdds + '" title="Odds on pieces"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></button>' +
         '<button class="icon-btn" data-a="hint" title="Hint"' + (myTurn ? '' : ' disabled') + '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg></button>' : ''));
@@ -655,7 +661,7 @@
       if (ui.hint && pub.phase === 'play') dests = new Set([ui.hint.to]);
       const lastH = pub.hist[pub.hist.length - 1];
       const truth = pub.phase === 'over' && pub.layouts ? truthFromLayouts(pub.layouts) : null;
-      drawPieces(bw, pub, snap.mine, me, { odds, showOdds: store.settings.showOdds, sel: ui.hint ? ui.hint.from : ui.sel, dests, badges,
+      drawPieces(bw, pub, snap.mine, me, { odds, showOdds: store.settings.showOdds, sel: ui.hint ? ui.hint.from : ui.sel, dests, badges, focus: ui.focus,
         last: lastH ? [lastH.f, lastH.t] : null, clickable: pub.phase === 'play', reveal: pub.phase === 'over', truth });
       // fight popup for a new fight
       const total = (pub.histFrom || 0) + pub.hist.length;
@@ -735,7 +741,7 @@
             fightLine = '<div class="fightline">Your ' + esc(rankName(myR)) + ': <span class="ok">win ' + pct(f.win) + '</span><span class="no">lose ' + pct(f.lose) + '</span>' + (f.tie ? '<span>both ' + pct(f.tie) + '</span>' : '') + '</div>';
           }
           return '<div class="infohead"><b>' + (c[2] !== null ? rankName(c[2]) + ' (shown)' : 'Hidden piece at ' + E.sqName(sq, me)) + '</b><span class="muted grow">' + (c[2] === null ? 'most likely ' + rankName(best) + ' ' + pct(p[best]) : '') + '</span>' + q('odds') + '</div>' +
-            '<div class="ranks">' + order.map(r => '<div class="rk"><div class="pbar' + (r === best ? ' hi' : '') + '"><i style="height:' + Math.round(p[r] * 100) + '%"></i></div><b>' + lab(r) + '</b></div>').join('') + '</div>' + fightLine;
+            '<div class="ranks">' + order.map(r => '<div class="rk"><span class="pv">' + (p[r] >= 0.005 ? Math.round(p[r] * 100) : '') + '</span><div class="pbar' + (r === best ? ' hi' : '') + '"><i style="height:' + Math.round(p[r] / Math.max(p[best], 1e-9) * 100) + '%"></i></div><b>' + lab(r) + '</b></div>').join('') + '</div>' + fightLine;
         }
       }
     }
@@ -743,6 +749,8 @@
       const myR = (snap.mine.own.find(x => x[0] === pub.cells[ui.sel][1]) || [])[1];
       return '<div class="infohead"><b>' + esc(rankName(myR)) + '</b><span class="muted">' + E.sqName(ui.sel, me) + '</span></div><div class="muted" style="font-size:13px">Tap a dot to move. A % on an enemy piece is your chance to win that fight (ties count half). Tap an enemy piece for its full odds.</div>';
     }
+    // on a laptop the army has its own panel just below, so this one only says what a tap does
+    if (window.innerWidth >= 900) return '<div class="infohead muted ph">Tap a piece</div>';
     return armyHtml(snap, odds).replace('Their army left', 'Their army left · tap a piece');
   }
 
@@ -755,7 +763,7 @@
     if (pub.phase === 'over') {
       return '<button class="btn" data-a="study">Study game</button>' + (snap.mode === 'online' ? '<button class="btn" data-a="leave">Leave room</button>' : '<button class="btn primary" data-a="newgame">New game</button>');
     }
-    return '<button class="btn" data-a="resign"' + (snap.myTurn ? '' : ' disabled') + '>Resign</button>' + (snap.mode === 'online' ? '<button class="btn" data-a="leave">Leave</button>' : '');
+    return '<button class="btn ghost" data-a="resign"' + (snap.myTurn ? '' : ' disabled') + '>Resign</button>' + (snap.mode === 'online' ? '<button class="btn" data-a="leave">Leave</button>' : '');
   }
 
   function logHtml(pub, me) {
@@ -869,7 +877,7 @@
       '<div class="su-tools"><div class="sutools"><button class="btn small" data-a="real">Real setup</button><button class="btn small" data-a="shuffle">Shuffle</button><button class="btn small" data-a="mirror">Mirror</button></div>' +
       (variant === 'classic' ? '<div class="row" style="margin-top:8px"><span class="label">Where players put</span>' + q('heat') + '</div>' +
       '<div class="heatpick" style="margin-top:4px">' + [-1, 0, 11, 1, 2, 3, 10, 9].map(r => '<button data-heat="' + r + '" aria-pressed="' + (heatRank === r) + '">' + (r < 0 ? 'Off' : lab(r)) + '</button>').join('') + '</div>' : '') + '</div>' +
-      '<div class="su-side panel scroll" style="display:flex;flex-direction:column;gap:10px">' +
+      '<div class="su-side panel scroll fade" style="display:flex;flex-direction:column;gap:10px">' +
       '<div class="sumrow">' + (guess ? '<div><div class="row"><span class="label">Flag found on guess</span>' + q('guess') + '</div><div class="big" style="color:' + pctColor(Math.min(1, guess.place / 12)) + '">#' + guess.place + '</div></div>' : '') +
       '<div class="grow"><div class="row"><span class="label">Test games</span>' + q('test') + '</div><div class="row"><div class="big" id="su-test">' + (su.test && su.test.variant === variant && su.test.key === own.join('') ? testText(su.test) : '—') + '</div>' +
       '<button class="btn small" data-a="test"' + (su.worker ? ' disabled' : '') + '>' + (su.worker ? 'Testing…' : 'Test it') + '</button></div></div></div>' +
@@ -931,7 +939,7 @@
   function runTest(variant) {
     const own = mySetup(variant).slice();
     let w;
-    try { w = new Worker('js/worker.js?v=2'); } catch (e) { toast('Testing needs a newer browser.'); return; }
+    try { w = new Worker('js/worker.js?v=3'); } catch (e) { toast('Testing needs a newer browser.'); return; }
     su.worker = w;
     su.test = { variant, key: own.join(''), wins: 0, losses: 0, draws: 0, done: 0, n: 24 };
     w.onmessage = ev => {
@@ -1002,7 +1010,7 @@
     const g = states[st.idx];
     if (!v.querySelector('.study.has')) {
       v.innerHTML = '<div class="study has"><div class="st-top"><div class="tabs2" id="st-tabs"></div><div class="stepper" style="margin-top:6px"><button class="icon-btn" data-a="prev" aria-label="Back one move"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 6l-6 6 6 6"/></svg></button><input type="range" id="st-range" min="0"><button class="icon-btn" data-a="next" aria-label="Forward one move"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg></button><span class="muted" id="st-n" style="font-size:12.5px;min-width:64px;text-align:right"></span></div></div>' +
-        '<div class="st-board boardcol" id="st-board"></div><div class="st-side panel" id="st-side" data-min="250" style="min-height:0;flex:1;display:flex;flex-direction:column;gap:8px"></div></div>';
+        '<div class="st-board boardcol" id="st-board"></div><div class="st-side panel" id="st-side" data-min="218" style="min-height:0;flex:1;display:flex;flex-direction:column;gap:6px"></div></div>';
       v.onclick = onStudyClick;
       v.oninput = e => { if (e.target.id === 'st-range') { st.idx = +e.target.value; renderStudy(); } };
       resetStudyBoard();
@@ -1049,8 +1057,11 @@
   }
   function chartSvg(a, b, idx) {
     const n = Math.max(1, a.length - 1);
-    const mx = Math.max.apply(null, a.concat(b)) || 1;
-    const pts = arr => arr.map((v, i) => (i / n * 100).toFixed(2) + ',' + (38 - v / mx * 34).toFixed(2)).join(' ');
+    // the y-axis spans only the values that occur, so the two lines use the whole height
+    const all = a.concat(b);
+    const mx = Math.max.apply(null, all), mn = Math.min.apply(null, all);
+    const span = mx - mn || 1;
+    const pts = arr => arr.map((v, i) => (i / n * 100).toFixed(2) + ',' + (37 - (v - mn) / span * 34).toFixed(2)).join(' ');
     return '<svg viewBox="0 0 100 40" preserveAspectRatio="none"><polyline points="' + pts(b) + '" fill="none" stroke="#969db4" stroke-width="1" vector-effect="non-scaling-stroke"/>' +
       '<polyline points="' + pts(a) + '" fill="none" stroke="#6ea8fe" stroke-width="2" vector-effect="non-scaling-stroke"/>' +
       '<line x1="' + (idx / n * 100) + '" x2="' + (idx / n * 100) + '" y1="0" y2="40" stroke="#f0b354" stroke-width="1" vector-effect="non-scaling-stroke"/></svg>' +

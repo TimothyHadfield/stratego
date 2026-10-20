@@ -1,7 +1,7 @@
 # Stratego Lab — progress
 
 ## START HERE
-Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-20 (QA fixes after the first build).
+Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-20 (visual design pass).
 
 ## Goal right now
 Tim's words (2026-10-20): "add risk, clue, battleship, connect four, stratego, clue, checkers, pandemic, splendor, king of tokyo, 7 wonders, and evolution to the list of games." This is the Stratego one: exact rules, odds for hidden pieces, setup analyzer, measured computers, study mode, online seats.
@@ -18,6 +18,7 @@ Tim's words (2026-10-20): "add risk, clue, battleship, connect four, stratego, c
 | Study tab (replay, material chart, Check my moves, real-game facts) | Done |
 | Settings | Done |
 | Online (shared `_online`) | Done; two-browser test passes locally (WebKit) |
+| Visual design pass (2026-10-20) | Done: bevelled pieces, board frame glows on your turn, readable odds badges (scale with the board), tapped enemy piece ringed, odds bars scaled to the top value with % labels, fight popup knocks the loser over, lakes without grid lines, laptop duplicate army panel removed, 40px tap targets, Study phone board 240→263 px |
 
 ## Measured strength (2026-10-20)
 Classic, 1,000 games each: Hard beats Medium 60.2% (±3.0), Hard beats Easy 96.4%, Medium beats Easy 89.3%, Easy beats random 85.4%.
@@ -37,7 +38,9 @@ Barrage, 500 each (re-measured after the Flag-lane setup fix): Hard–Medium 53.
 - Finished games are told apart by `gid` (made in `E.newGame`, shown in `publicView`); never key on layouts or move count again (back-to-back resigns collided).
 - `render()` catches a failed draw and drops only the saved part that tab was showing (local game, last game, or one setup). Keep new tabs inside it.
 - Game buttons ignore a tap on a *different* button within 500 ms (Ready turns into Resign under the finger). Test scripts must wait >500 ms between them.
-- Bump every `?v=` (index.html, worker.js, the Worker URL and the online import) on each push.
+- Bump every `?v=` (index.html, worker.js, the Worker URL and the online import) on each push. Now at v=3 (online import v=4).
+- Odds badges size with `cqw` units: `.bwrap` is a size container. Keep its width/height set by `sizeBoard`.
+- Laptop `#info-side` has a fixed height (132 px) so tapping a piece never moves the army/moves panels; its idle state is the dashed "Tap a piece" slot.
 
 ## Decisions
 - Default rules = Jumbo 2022 / ISF: Red first, Scout may move and strike, two-squares limit 3, chase rule on.
@@ -51,7 +54,9 @@ Barrage, 500 each (re-measured after the Flag-lane setup fix): Hard–Medium 53.
 - Duel / Quick Battle, Ultimate Lightning, Rescue — skipped.
 - ISF 11.2 exception has no real-game test data.
 - Hard's 6-world look-ahead speed on an old phone.
-- The Study board is still ~240 px wide on a phone; giving it more room left the move list one sliver high, so it was left as is.
+- The Study board is ~263 px wide on a phone (was 240); the move list shows 2 rows. A full-width board would leave no list.
+- Design-pass choices Tim didn't make: Resign is now a quiet ghost button; the laptop side panel shows a dashed "Tap a piece" slot when nothing is tapped; laptop new-game form is centred vertically.
+- Fight popup motion and the turn glow checked only in WebKit headless screenshots, not on a real iPhone.
 - In Barrage, Hard is not clearly stronger than Medium (53.2% ±4.4).
 
 ## Rejected / parked

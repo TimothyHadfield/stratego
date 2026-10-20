@@ -7,6 +7,12 @@
 - **Verified:** engine 12 + odds 4 + online 5 tests pass; mutation runs (Spy/Marshal, Miner/Bomb, ties, lakes, army counts, two-squares, chase, public-view leak, moved-piece odds) each make a test fail; phone-view 393 px and laptop screenshots of every tab; full games to the end (classic 309 plies, Barrage); two-browser online test in WebKit.
 - **Open:** see progress.md NOT verified.
 
+## 2026-10-20 — visual design pass (builder under the games manager)
+- **Asked:** Tim: "once you're finished with all the games, review them again for design improvements especially visually." Polish only, no rules or behaviour changes, `js/online.js` untouched.
+- **Built:** piece bevel/shine and embossed shield backs (`js/art.js`), lakes drawn over the grid; board frame glows in your colour on your turn, pulsing dot while the other side thinks, bigger status line; odds badges two-tone and sized to the board; ring on the tapped enemy piece; odds bars scaled to the top value with % above; fight popup: loser knocked over, winner swells; laptop: duplicate "Their army left" removed (fixed-height info slot), bigger side text, new-game form centred; heat map now tints the board under grey see-through pieces; 40 px tap targets (heat chips, small buttons, Study tabs, icon buttons, ? hit area); Study chart y-axis fits the data and the phone board grew; log fade; sticky table header fixed; `?v=3`.
+- **Verified:** engine 12, odds 5, online 5 pass; phone-view WebKit 393 px and 1440 px before/after of 12 states (new game, online, setup phase, setup tab, heat map, mid-game, piece selected, enemy tapped, game over, study, study facts, settings) plus the fight popup: 0 console errors, no horizontal overflow, no page scroll. Screenshots in the manager's scratchpad `design/stratego/{before,after}`.
+- **Open:** two-browser online test not rerun (no online code changed).
+
 ## 2026-10-20 — QA fixes
 - **Asked:** coordinator passed on the QA agent's list (record dedupe, partial move check, Barrage Flag exposed, damaged saves, Study overflow at 393 px, draw at start, plus 4 small ones).
 - **Built:** `gid` per game; move check pauses and resumes, done only when complete; computer Barrage setups always block the Flag's column, and Setup warns "Flag open to a Scout"; save checks plus a render guard; Study side panel scrolls; `placeAll` draws when both are stuck; Test-it shows "6/24"; 500 ms tap guard; Barrage heat map and Classic win % hidden in Barrage; Study slider builds the move list once. Re-copied `_online` cf38e03.
