@@ -27,6 +27,15 @@
     for (let k = 0; k < 40; k++) if (own[k] < 0) own[k] = rest[j++];
     return own;
   }
+  /** Own view: can an enemy Scout reach the Flag in one run straight down its column? (lake columns are shielded) */
+  function flagLaneOpen(own) {
+    const f = own.indexOf(FLAG);
+    if (f < 0) return false;
+    const col = f % 10;
+    if (col === 2 || col === 3 || col === 6 || col === 7) return false;
+    for (let k = f - 10; k >= 0; k -= 10) if (own[k] >= 0) return false;
+    return true;
+  }
   function barrageSetup(rng, careful) {
     const own = new Array(40).fill(-1);
     const free = k => own[k] < 0;
@@ -42,6 +51,15 @@
     own[pick(range(1, 3))] = MINER;
     own[pick(range(0, 1))] = SCOUT;
     own[pick(range(0, 1))] = SCOUT;
+    // never leave the Flag open to one Scout run down its column: put a piece (usually the Bomb) in front
+    if (flagLaneOpen(own)) {
+      const movers = [];
+      for (let k = 0; k < 40; k++) if (own[k] >= 0 && k !== f) movers.push(k);
+      const bomb = movers.find(k => own[k] === BOMB);
+      const from = bomb !== undefined && rng() < 0.7 ? bomb : movers[(rng() * movers.length) | 0];
+      own[f - 10] = own[from];
+      own[from] = -1;
+    }
     return own;
   }
   function realSetup(rng) {
@@ -302,5 +320,5 @@
     return { legal: ctx.legal, scores: ctx.legal.map(([f, t]) => scoreMove(ctx, seat, mine, f, t, 'medium')) };
   }
 
-  return { chooseSetup, chooseMove, hint, rate, randomSetup, realSetup, barrageSetup, values, myRank };
+  return { chooseSetup, chooseMove, hint, rate, randomSetup, realSetup, barrageSetup, flagLaneOpen, values, myRank };
 });

@@ -1,6 +1,6 @@
 /* Background worker: plays quick test games for the setup analyzer without freezing the page. */
 /* global importScripts, StrEngine, StrBots, StrOdds */
-importScripts('engine.js?v=1', 'data.js?v=1', 'odds.js?v=1', 'bots.js?v=1');
+importScripts('engine.js?v=2', 'data.js?v=2', 'odds.js?v=2', 'bots.js?v=2');
 self.onmessage = function (ev) {
   const m = ev.data || {};
   if (m.type !== 'test') return;

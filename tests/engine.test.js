@@ -168,6 +168,27 @@ const moves = (g, seat, from) => E.legalMoves(g, seat).filter(m => m[0] === from
   const g4 = board([[0, CAPTAIN, 70], [1, CAPTAIN, 71], [1, FLAG, 0], [0, FLAG, 99]]);
   E.apply(g4, 0, { type: 'move', from: 70, to: 71 });
   assert.deepEqual(g4.result, { winner: -1, why: 'nomoves' }, 'equal Captains both go; only Flags left: draw');
+  // Walled-in setups: Bombs and Flag on front columns 0,1,4,5,8,9, the rest face lakes or own pieces
+  const walled = new Array(40).fill(-1);
+  [0, 1, 4, 5, 8].forEach(k => { walled[k] = BOMB; });
+  walled[9] = FLAG; walled[39] = BOMB;
+  const restW = [];
+  E.ARMIES.classic.forEach((n, r) => { for (let i = 0; i < n; i++) if (r !== BOMB && r !== FLAG) restW.push(r); });
+  for (let k = 0, j = 0; k < 40; k++) if (walled[k] < 0) walled[k] = restW[j++];
+  const g5 = E.newGame({});
+  E.apply(g5, 0, { type: 'setup', layout: E.layoutFromOwn(walled, 0) });
+  E.apply(g5, 1, { type: 'setup', layout: E.layoutFromOwn(walled, 1) });
+  assert.deepEqual(g5.result, { winner: -1, why: 'nomoves' }, 'neither side can move at the start: draw');
+  const army = [];
+  E.ARMIES.classic.forEach((n, r) => { for (let i = 0; i < n; i++) army.push(r); });
+  const g6 = E.newGame({});
+  E.apply(g6, 0, { type: 'setup', layout: E.layoutFromOwn(walled, 0) });
+  E.apply(g6, 1, { type: 'setup', layout: army });
+  assert.deepEqual(g6.result, { winner: 1, why: 'nomoves' }, 'only Red is walled in: Blue wins');
+  const g7 = E.newGame({});
+  E.apply(g7, 0, { type: 'setup', layout: army });
+  E.apply(g7, 1, { type: 'setup', layout: E.layoutFromOwn(walled, 1) });
+  assert.equal(g7.phase, 'play', 'only Blue walled in: Red moves first, Blue loses after');
   ok('game end: Flag taken, opponent cannot move, resign, neither side can move = draw');
 }
 

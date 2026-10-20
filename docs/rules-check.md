@@ -27,7 +27,7 @@ Rulebook wording is paraphrased (no rulebook text is copied).
 | 12 | Any piece attacking a Bomb is removed (Bomb stays); a Miner removes the Bomb and moves in | `resolve` | J, ISF (H 2002: same) | engine test 2 |
 | 13 | Both pieces in a fight are shown; the winner moves in only if it was the attacker | `doMove` | J, ISF | engine test 8 (board fights) |
 | 14 | Capturing the Flag wins | `doMove` | J, H, ISF | engine test 7, engine test 10 Gravon replay (107/107 flag captures agree) |
-| 15 | A player who cannot move or attack loses; if neither side can move, the game is a draw | `doMove` end check | J (no move = loss), ISF (both stuck = draw) | engine test 7 (loss and draw) |
+| 15 | A player who cannot move or attack loses; if neither side can move, the game is a draw | `doMove` end check, and `placeAll` for setups that are stuck from the start | J (no move = loss), ISF (both stuck = draw) | engine test 7 (loss and draw, also walled-in setups at the start) |
 | 16 | Two-squares rule: a piece may not move back and forth between the same two squares more than 3 times in a row (the 4th is refused); Scout runs across those squares count | `breaksTwoSq` | ISF 10.1–10.2, J | engine test 4 (limit 3 and 5, Scout stretches) |
 | 17 | Option: limit 5 (older ISF / Gravon) | `opts.twoSq` | ISF older versions, G (longest streak in 42,488 games is exactly 5) | engine test 4 |
 | 18 | More-squares rule: a chasing piece may not keep threatening the same piece over a repeating set of squares; only the chaser is limited, with the 11.2 exception | `breaksChase` (default on, Settings switch) | ISF 11 | engine test 5 |

@@ -134,4 +134,23 @@ const maxDiff = (a, b) => { let m = 0; a.forEach((row, i) => row.forEach((x, r) 
   ok('real-setup prior: Flag on the back row ' + (back * 100).toFixed(0) + '%, front row ' + (front * 100).toFixed(1) + '%; a moved piece is never Flag/Bomb');
 }
 
+// 5. The computer's Barrage setups never leave the Flag open to one Scout run down its column
+{
+  const rng = Odds.mulberry(11);
+  let open = 0, n = 0;
+  for (const level of ['easy', 'medium', 'hard']) {
+    for (let i = 0; i < 300; i++) {
+      const own = Bots.chooseSetup('barrage', level, rng);
+      assert.equal(E.checkLayout(E.layoutFromOwn(own, 0), 'barrage'), null, 'a legal Barrage army');
+      const f = own.indexOf(E.FLAG), col = f % 10;
+      let lane = ![2, 3, 6, 7].includes(col);
+      for (let k = f - 10; k >= 0; k -= 10) if (own[k] >= 0) lane = false;
+      if (lane) open++;
+      n++;
+    }
+  }
+  assert.equal(open, 0, open + ' of ' + n + ' Barrage setups leave the Flag open to a Scout');
+  ok('Barrage computer setups: 0 of ' + n + ' leave the Flag open to a Scout run');
+}
+
 console.log(pass + ' passed');

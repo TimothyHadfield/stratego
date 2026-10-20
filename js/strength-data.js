@@ -10,10 +10,10 @@
       'easy-random': { games: 1000, firstScore: 85.4, ci95: 2.2 },
     } },
     barrage: { results: {
-      'hard-medium': { games: 500, firstScore: 55.2, ci95: 4.4 },
-      'hard-easy': { games: 500, firstScore: 89.0, ci95: 2.7 },
-      'medium-easy': { games: 500, firstScore: 84.4, ci95: 3.2 },
-      'easy-random': { games: 500, firstScore: 67.9, ci95: 4.1 },
+      'hard-medium': { games: 500, firstScore: 53.2, ci95: 4.4 },
+      'hard-easy': { games: 500, firstScore: 88.0, ci95: 2.8 },
+      'medium-easy': { games: 500, firstScore: 85.7, ci95: 3.1 },
+      'easy-random': { games: 500, firstScore: 68.2, ci95: 4.1 },
     } },
   };
 })(typeof self !== 'undefined' ? self : this);

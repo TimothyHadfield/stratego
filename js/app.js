@@ -47,7 +47,10 @@
     st.newGame.color = ng.color === 1 ? 1 : 0;
     if (s.setups) for (const v of ['classic', 'barrage']) if (validOwn(s.setups[v], v)) st.setups[v] = s.setups[v];
     if (s.local && s.local.state && s.local.state.v === 1 && (s.local.me === 0 || s.local.me === 1) && LEVELS.includes(s.local.level)) st.local = s.local;
-    if (s.last && Array.isArray(s.last.hist) && s.last.layouts) st.last = s.last;
+    const L = s.last;
+    if (L && typeof L === 'object' && Array.isArray(L.hist) && Array.isArray(L.layouts) && L.layouts.length === 2 &&
+      L.layouts.every(x => Array.isArray(x) && x.length === 40) && L.opts && typeof L.opts === 'object' &&
+      (L.me === 0 || L.me === 1) && L.result && typeof L.result === 'object' && typeof L.key === 'string') st.last = L;
     if (s.record) for (const l of LEVELS) if (Array.isArray(s.record[l])) st.record[l] = [s.record[l][0] | 0, s.record[l][1] | 0];
     st.inRoom = !!s.inRoom;
     return st;
@@ -159,7 +162,7 @@
   let local = null;
   const net = { room: null, snap: null, mod: null };
   let botTimer = null;
-  const ui = { sel: -1, focus: -1, hint: null, fight: null, lastHistLen: 0, lastKey: '' };
+  const ui = { sel: -1, focus: -1, hint: null, fight: null, lastHistLen: 0, lastKey: '', tapAt: 0, tapA: '' };
 
   function rulesFromSettings() {
     const s = store.settings;
@@ -196,12 +199,20 @@
     store.local = local ? { state: local.g, me: local.me, level: local.level } : null;
     save();
   }
+  /** Bring back the saved game; a save that doesn't hold a whole game is dropped (and only that). */
   function resumeLocal() {
     if (!store.local) return;
     try {
-      const g = store.local.state;
-      if (g.phase !== 'over') { E.toAct(g); local = { g, me: store.local.me, level: store.local.level }; ui.lastHistLen = g.hist.length; }
-    } catch (e) { store.local = null; }
+      const g = store.local.state, me = store.local.me;
+      if (g.phase !== 'setup' && g.phase !== 'play') throw new Error('not a game in progress');
+      if (!Array.isArray(g.board) || g.board.length !== 100 || !Array.isArray(g.pieces) || !Array.isArray(g.hist) ||
+        !Array.isArray(g.layouts) || g.layouts.length !== 2 || !g.opts || !Array.isArray(g.names) || !Array.isArray(g.streak) || !Array.isArray(g.last)) throw new Error('bad save');
+      if (g.phase === 'play' && (g.pieces.length !== 100 || !g.layouts[0] || !g.layouts[1])) throw new Error('bad save');
+      E.toAct(g); E.publicView(g); E.privateView(g, me);
+      if (g.phase === 'play') E.legalMoves(g, g.turn);
+      if (!g.gid) g.gid = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      local = { g, me, level: store.local.level }; ui.lastHistLen = g.hist.length;
+    } catch (e) { local = null; store.local = null; save(); }
   }
 
   function localAct(action) {
@@ -231,7 +242,8 @@
 
   function finishGame(result, pub, me, mode, level) {
     // remember the finished game for Study (once)
-    const key = JSON.stringify([pub.layouts && pub.layouts[0] && pub.layouts[0].slice(0, 8), pub.hist.length, result]);
+    // every game carries its own id, so two games in a row with the same length and result both count
+    const key = mode + ':' + (pub.gid || JSON.stringify([pub.layouts, pub.hist.length, result]));
     if (store.last && store.last.key === key) return;
     store.last = { key, opts: pub.opts, layouts: pub.layouts, hist: pub.hist, me, names: pub.names, result, mode, level: level || null };
     if (mode === 'computer' && level && result.winner !== -1) store.record[level][result.winner === me ? 0 : 1]++;
@@ -242,7 +254,7 @@
   // ------------------------------------------------------------------ online
   function loadOnline() {
     if (net.mod) return Promise.resolve(net.mod);
-    return import(new URL('js/online.js?v=2', location.href).href).then(mod => {
+    return import(new URL('js/online.js?v=3', location.href).href).then(mod => {
       net.mod = mod;
       net.room = mod.createOnline({ game: StrOnlineGame.game, gameId: 'stratego', botDelayMs: 700 });
       net.room.on('change', snap => {
@@ -762,6 +774,10 @@
   function onGameButtons(e) {
     const a = e.target.closest('[data-a]');
     if (!a || a.disabled) return;
+    // a quick second tap must not land on the button that took the first one's place (Ready -> Resign)
+    const now = Date.now();
+    if (now - ui.tapAt < 500 && a.dataset.a !== ui.tapA) return;
+    ui.tapAt = now; ui.tapA = a.dataset.a;
     const snap = snapNow();
     switch (a.dataset.a) {
       case 'odds': store.settings.showOdds = !store.settings.showOdds; save(); render(); break;
@@ -793,7 +809,7 @@
     const out = [];
     const fk = own.indexOf(E.FLAG);
     const depth = Math.floor(fk / 10);
-    const S = D && D.stats;
+    const S = variant === 'classic' && D && D.stats; // the real-game numbers are from Classic games only
     if (depth === 3) out.push(['good', 'Flag on the back row', S ? 'Players who do this win ' + pct(S.flagDepthWins[3] / S.flagDepthGames[3]) : '']);
     else out.push([depth === 2 ? 'warn' : 'bad', 'Flag is ' + ['on the front row', 'on row 2', 'on row 3'][depth], S ? 'Real players win ' + pct(S.flagDepthWins[depth] / Math.max(1, S.flagDepthGames[depth])) + ' like this (back row: ' + pct(S.flagDepthWins[3] / S.flagDepthGames[3]) + ')' : '']);
     const nb = [];
@@ -815,6 +831,7 @@
       const minersBack = own.slice(20).filter(r => r === E.MINER).length;
       out.push([minersBack >= 2 ? 'good' : 'warn', minersBack + ' Miners in the back two rows', 'You need Miners late to open Bombs']);
     } else {
+      if (Bots.flagLaneOpen(own)) out.push(['bad', 'Flag open to a Scout', 'Nothing stands in front of it: a Scout can run straight down that column']);
       out.push([bombed ? 'good' : 'warn', bombed ? 'Bomb next to the Flag' : 'Flag has no Bomb beside it', 'With one Bomb the Flag can\'t be closed in']);
     }
     const gk = own.indexOf(E.GENERAL), sk = own.indexOf(E.SPY);
@@ -850,8 +867,8 @@
       (lockedGame ? '<button class="btn primary small" data-a="back">Back to game</button>' : '') + '</div>' +
       '<div class="su-grid"><div class="muted" style="font-size:12px;margin-bottom:4px">Front row (toward the enemy) on top · tap two squares to swap</div><div class="sugrid" id="sugrid"></div></div>' +
       '<div class="su-tools"><div class="sutools"><button class="btn small" data-a="real">Real setup</button><button class="btn small" data-a="shuffle">Shuffle</button><button class="btn small" data-a="mirror">Mirror</button></div>' +
-      '<div class="row" style="margin-top:8px"><span class="label">Where players put</span>' + q('heat') + '</div>' +
-      '<div class="heatpick" style="margin-top:4px">' + [-1, 0, 11, 1, 2, 3, 10, 9].map(r => '<button data-heat="' + r + '" aria-pressed="' + (heatRank === r) + '">' + (r < 0 ? 'Off' : lab(r)) + '</button>').join('') + '</div></div>' +
+      (variant === 'classic' ? '<div class="row" style="margin-top:8px"><span class="label">Where players put</span>' + q('heat') + '</div>' +
+      '<div class="heatpick" style="margin-top:4px">' + [-1, 0, 11, 1, 2, 3, 10, 9].map(r => '<button data-heat="' + r + '" aria-pressed="' + (heatRank === r) + '">' + (r < 0 ? 'Off' : lab(r)) + '</button>').join('') + '</div>' : '') + '</div>' +
       '<div class="su-side panel scroll" style="display:flex;flex-direction:column;gap:10px">' +
       '<div class="sumrow">' + (guess ? '<div><div class="row"><span class="label">Flag found on guess</span>' + q('guess') + '</div><div class="big" style="color:' + pctColor(Math.min(1, guess.place / 12)) + '">#' + guess.place + '</div></div>' : '') +
       '<div class="grow"><div class="row"><span class="label">Test games</span>' + q('test') + '</div><div class="row"><div class="big" id="su-test">' + (su.test && su.test.variant === variant && su.test.key === own.join('') ? testText(su.test) : '—') + '</div>' +
@@ -862,7 +879,7 @@
     v.onclick = onSetupClick;
   }
   function testText(t) {
-    if (!t.done) return t.done === 0 ? '…' : Math.round((t.wins + t.draws / 2) / t.done * 100) + '% <span class="muted" style="font-size:12px">' + t.done + '/' + t.n + '</span>';
+    if (!t.finished) return !t.done ? '…' : Math.round((t.wins + t.draws / 2) / t.done * 100) + '% <span class="muted" style="font-size:12px">' + t.done + '/' + t.n + '</span>';
     return Math.round((t.wins + t.draws / 2) / t.done * 100) + '% <span class="muted" style="font-size:12px">±' + Math.round(100 / Math.sqrt(t.done)) + ' · ' + t.done + ' games</span>';
   }
   function drawSetupGrid(own, variant) {
@@ -914,14 +931,14 @@
   function runTest(variant) {
     const own = mySetup(variant).slice();
     let w;
-    try { w = new Worker('js/worker.js?v=1'); } catch (e) { toast('Testing needs a newer browser.'); return; }
+    try { w = new Worker('js/worker.js?v=2'); } catch (e) { toast('Testing needs a newer browser.'); return; }
     su.worker = w;
     su.test = { variant, key: own.join(''), wins: 0, losses: 0, draws: 0, done: 0, n: 24 };
     w.onmessage = ev => {
       const m = ev.data;
       Object.assign(su.test, { wins: m.wins, losses: m.losses, draws: m.draws, done: m.type === 'done' ? m.n : m.done });
       if (m.type === 'done') { su.test.done = m.n; su.test.finished = true; w.terminate(); su.worker = null; if (tab === 'setup') render(); return; }
-      const el = $('#su-test'); if (el) el.innerHTML = testText(Object.assign({}, su.test, { done: m.done }));
+      const el = $('#su-test'); if (el) el.innerHTML = testText(su.test);
     };
     w.onerror = () => { su.worker = null; toast('Test stopped.'); render(); };
     w.postMessage({ type: 'test', own, variant, n: 24, seed: (Date.now() % 100000) + 1 });
@@ -929,7 +946,7 @@
   }
 
   // ================================================================== STUDY TAB
-  const st = { idx: -1, view: 'game', analysis: null, running: false };
+  const st = { idx: -1, view: 'game', analysis: null, running: false, job: null };
   function replayStates(last) {
     // rebuild every position of the finished game from the two setups and the move list
     const g = E.newGame(last.opts, last.names);
@@ -948,7 +965,11 @@
   function studyStates() {
     const last = store.last;
     if (!last) return null;
-    if (stCache.key !== last.key) { stCache = { key: last.key, states: replayStates(last) }; st.idx = stCache.states.length - 1; st.analysis = null; }
+    if (stCache.key !== last.key) {
+      const states = replayStates(last);
+      stCache = { key: last.key, states, mat: [states.map(s => material(s, last.me)), states.map(s => material(s, 1 - last.me))] };
+      st.idx = states.length - 1; st.analysis = null;
+    }
     return stCache.states;
   }
   function material(g, seat) {
@@ -998,16 +1019,33 @@
     drawStudyPieces(bw, pub, truth, me, h ? [h.f, h.t] : null, g);
     // side
     const side = $('#st-side');
-    if (st.view === 'facts') { side.innerHTML = '<div class="label">From 42,488 real games</div>' + factsHtml; sizeBoard(); return; }
+    if (st.view === 'facts') { side.innerHTML = '<div class="label">From 42,488 real games</div>' + factsHtml; side._key = null; sizeBoard(); return; }
     const res = last.result;
-    const myMat = states.map(s => material(s, me)), theirMat = states.map(s => material(s, 1 - me));
-    side.innerHTML = '<div class="row"><b class="grow">' + esc(resultText(res, me)) + '</b><span class="muted" style="font-size:12px">' + esc(last.mode === 'computer' ? 'vs ' + LEVEL_NAME[last.level] : 'online') + '</span></div>' +
-      '<div class="chart">' + chartSvg(myMat, theirMat, st.idx) + '</div>' +
-      '<div class="row"><span class="label grow">Your moves</span>' + q('lost') + (st.analysis ? '' : '<button class="btn small" data-a="analyze"' + (st.running ? ' disabled' : '') + '>' + (st.running ? 'Checking…' : 'Check my moves') + '</button>') + '</div>' +
-      '<div class="scroll" style="flex:1"><table class="turns"><thead><tr><th>#</th><th>Move</th><th>Note</th></tr></thead><tbody>' + studyRows(last, me) + '</tbody></table></div>';
-    const cur = side.querySelector('tr.cur');
-    if (cur) cur.scrollIntoView({ block: 'nearest' });
+    // a check left half-done (the player went to another tab) carries on where it stopped
+    if (st.job && st.job.key === last.key && !st.running) startAnalysis();
+    const [myMat, theirMat] = stCache.mat;
+    const sideKey = last.key + '|' + (st.analysis ? 1 : 0) + '|' + st.running;
+    if (side._key !== sideKey) {
+      // the move list is long: build it once, then only move the highlight
+      side.innerHTML = '<div class="row"><b class="grow">' + esc(resultText(res, me)) + '</b><span class="muted" style="font-size:12px">' + esc(last.mode === 'computer' ? 'vs ' + LEVEL_NAME[last.level] : 'online') + '</span></div>' +
+        '<div class="chart">' + chartSvg(myMat, theirMat, st.idx) + '</div>' +
+        '<div class="row"><span class="label grow">Your moves</span>' + q('lost') + (st.analysis ? '' : '<button class="btn small" data-a="analyze"' + (st.running ? ' disabled' : '') + '>' + (st.running ? analysisLabel() : 'Check my moves') + '</button>') + '</div>' +
+        '<div class="scroll" style="flex:1"><table class="turns"><thead><tr><th>#</th><th>Move</th><th>Note</th></tr></thead><tbody>' + studyRows(last, me) + '</tbody></table></div>';
+      side._key = sideKey;
+    } else {
+      const x = (st.idx / Math.max(1, myMat.length - 1) * 100).toFixed(3);
+      const ln = side.querySelector('.chart line');
+      if (ln) { ln.setAttribute('x1', x); ln.setAttribute('x2', x); }
+      const old = side.querySelector('tr.cur');
+      if (old) old.classList.remove('cur');
+    }
+    const cur = side.querySelector('tr[data-i="' + st.idx + '"]');
+    if (cur) { cur.classList.add('cur'); cur.scrollIntoView({ block: 'nearest' }); }
     sizeBoard();
+  }
+  function analysisLabel() {
+    const j = st.job, n = store.last ? store.last.hist.length : 0;
+    return 'Checking… ' + (j && n ? Math.floor(j.i / n * 100) : 0) + '%';
   }
   function chartSvg(a, b, idx) {
     const n = Math.max(1, a.length - 1);
@@ -1041,13 +1079,20 @@
     return last.layouts[s][id - E.zoneOf(s)];
   }
   function runAnalysis() {
-    const last = store.last;
+    if (!st.job || st.job.key !== store.last.key) st.job = { key: store.last.key, out: [], i: 0 };
+    startAnalysis();
+    render();
+  }
+  /** Check the moves a slice at a time. Leaving Study pauses it; it only counts as done when every move is checked. */
+  function startAnalysis() {
+    const last = store.last, job = st.job;
     const states = studyStates();
     const me = last.me;
-    st.running = true; render();
-    const out = [];
-    let i = 0;
+    st.running = true;
+    const out = job.out;
     function chunk() {
+      if (st.job !== job || !store.last || store.last.key !== job.key) { st.running = false; return; }
+      let i = job.i;
       const t0 = Date.now();
       while (i < last.hist.length && Date.now() - t0 < 40) {
         const h = last.hist[i];
@@ -1069,9 +1114,12 @@
           out[i] = a;
         }
         i++;
+        job.i = i;
       }
-      if (i < last.hist.length && tab === 'study') setTimeout(chunk, 0);
-      else { st.analysis = out; st.running = false; render(); }
+      if (i >= last.hist.length) { st.analysis = out; st.job = null; st.running = false; if (tab === 'study') render(); return; }
+      if (tab !== 'study') { st.running = false; return; } // paused; carries on when Study opens again
+      const b = $('#st-side [data-a="analyze"]'); if (b) b.textContent = analysisLabel();
+      setTimeout(chunk, 0);
     }
     setTimeout(chunk, 0);
   }
@@ -1085,7 +1133,7 @@
     const states = studyStates();
     if (a.dataset.a === 'prev') st.idx = Math.max(0, st.idx - 1);
     if (a.dataset.a === 'next') st.idx = Math.min(states.length - 1, st.idx + 1);
-    if (a.dataset.a === 'analyze') { runAnalysis(); return; }
+    if (a.dataset.a === 'analyze') { if (!st.running) runAnalysis(); return; }
     render();
   }
   // the study board is its own board (so the play board keeps its state)
@@ -1165,12 +1213,25 @@
   }
 
   // ================================================================== render
-  function render() {
-    closePop();
+  function renderTab() {
     if (tab === 'play') renderPlay();
     else if (tab === 'setup') renderSetup();
     else if (tab === 'study') renderStudy();
     else renderSettings();
+  }
+  function render() {
+    closePop();
+    try { renderTab(); }
+    catch (err) {
+      // a damaged save must never blank the page: drop only the part this tab was showing, then draw again
+      console.warn('render failed', err);
+      if (tab === 'play' && local) { clearTimeout(botTimer); local = null; store.local = null; resetBoard(); toast('The saved game could not be opened, so it was cleared.'); }
+      else if (tab === 'study' && store.last) { store.last = null; stCache = { key: null, states: null }; st.analysis = null; resetStudyBoard(); toast('The saved game could not be replayed, so it was cleared.'); }
+      else if (tab === 'setup') { const v = suVariant(); store.setups[v] = null; su.tokens = null; }
+      else throw err;
+      save();
+      renderTab();
+    }
   }
 
   // start

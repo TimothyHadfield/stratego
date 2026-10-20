@@ -95,6 +95,7 @@
       hist: [],         // every move: {s, f, t, id, b?: {d, ar, dr, out}}
       cons: {},          // id -> bitmask of ranks still possible, from fights where a rank stayed hidden
       result: null,
+      gid: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), // tells one game from the next
     };
   }
 
@@ -112,7 +113,7 @@
     }
     g.phase = 'play';
     g.turn = 0;
-    if (!hasMove(g, 0)) finish(g, 1, 'nomoves');
+    if (!hasMove(g, 0)) finish(g, hasMove(g, 1) ? 1 : -1, 'nomoves'); // both stuck from the start: draw
   }
 
   /** Does this move carry on the seat's back-and-forth streak? For one-square moves that means "between the
@@ -351,7 +352,7 @@
       return o;
     });
     return {
-      phase: g.phase, turn: g.turn, ply: g.ply, opts: g.opts, names: g.names,
+      phase: g.phase, turn: g.turn, ply: g.ply, opts: g.opts, names: g.names, gid: g.gid || null,
       ready: [!!g.layouts[0], !!g.layouts[1]],
       cells, dead, hist, histFrom: from, streak: g.streak, last: g.last, chase: g.chase, cons: over ? {} : g.cons, result: g.result,
       layouts: over ? g.layouts : null,
