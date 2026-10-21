@@ -1,5 +1,11 @@
 # Stratego Lab — session log
 
+## 2026-10-20 — edge pass (builder under the games manager)
+- **Asked:** Tim: "Could you focus on making each game perfect especially in scenarios that the game doesn't expect or are a little weird." Brief: 40+ weird scenarios, test each for real, fix failures with a failing test first; make the phone board as big as it can be; confirm taps on the tilted laptop board.
+- **Built:** `js/app.js` + `index.html` fixes (see progress.md "Edge pass"); `tests/edge.test.mjs` (12 WebKit checks, own server); `?v=6`. Shared `js/online.js` / `js/fx.js` untouched.
+- **Verified:** 61 scenarios (harness in the manager scratchpad `edge/stratego/`): 41 pass, 16 fixed, 1 N/A, 3 NOT verified. Edge test 12/12 on the fix, 10 checks fail on the old build (2 crashed node there). engine 12, odds 5, sfx 7, online 5, two-browsers (local) pass. Layout sweep 70/70 in WebKit and Chrome at 320, 393, 659×393, 1280, 1920. Online double-tap/host-close on real Firebase.
+- **Open:** see progress.md NOT verified.
+
 ## 2026-10-20 — real-table look (builder under the games manager)
 - **Asked:** Tim: "make sure that each of the games also have a look to them so that the game ... looks almost identical to how the board or card layout looks like in real life ... like you're looking through a camera that is connected to a user's glasses". No rules changes; `js/online.js` untouched.
 - **Built:** shared `_table` kit copied in (`css/table.css`, `js/table.js`), fx.js re-copied, `.gitattributes`; wood table under Play; `.bframe` folding board with printed end margins holding each side's removed pieces (`graveHtml`, `Art.flat`); standing-slab pieces (gold/silver print), meadow board with ponds and centre fold (`js/art.js`); 3-D turn of the enemy piece in the fight popup; laptop tilt; phone-landscape layouts for Play and Setup; `?v=5`.

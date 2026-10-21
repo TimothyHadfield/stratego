@@ -1,7 +1,7 @@
 # Stratego Lab — progress
 
 ## START HERE
-Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-20 (real-table look, live c7bd335).
+Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-20 (edge pass: odd taps/devices/screens, `tests/edge.test.mjs`).
 
 ## Goal right now
 Tim's words (2026-10-20): "add risk, clue, battleship, connect four, stratego, clue, checkers, pandemic, splendor, king of tokyo, 7 wonders, and evolution to the list of games." This is the Stratego one: exact rules, odds for hidden pieces, setup analyzer, measured computers, study mode, online seats.
@@ -22,6 +22,25 @@ Tim's words (2026-10-20): "add risk, clue, battleship, connect four, stratego, c
 | Real-table look (2026-10-20, c7bd335) | Done: Play tab on a wood table (shared kit `css/table.css` + `js/table.js`, byte copies of `_table`); folding board with printed end margins where each side's removed pieces lie in rank stacks (theirs far, yours near), gold rule, centre fold, meadow print, irregular ponds; pieces are standing slabs (top edge, face toward owner, shadow; red printed gold, blue silver; enemy = plain back with emblem); fight turns the enemy piece round in 3-D; laptop board tilted back 11° (perspective); new phone-landscape layout (board left, panels right) for Play and Setup |
 | Visual design pass (2026-10-20) | Done: bevelled pieces, board frame glows on your turn, readable odds badges (scale with the board), tapped enemy piece ringed, odds bars scaled to the top value with % labels, fight popup knocks the loser over, lakes without grid lines, laptop duplicate army panel removed, 40px tap targets, Study phone board 240→263 px |
 
+## Edge pass (2026-10-20)
+61 weird scenarios tested for real (rules in node; taps, devices and screens in headless WebKit + Chrome; online rooms on real Firebase): 41 passed as found, 16 failed and are fixed, 1 N/A (no spectators), 3 NOT verified. Regression test: `node tests/edge.test.mjs` (12 checks, WebKit, own server; `BASE=<url>` checks the live site).
+| Fixed | Was |
+|---|---|
+| Board size | phone 330→342 px, iPhone SE 247→259, phone sideways 231→334 (Study 296); rotating mid-game resized to 240, now 334 |
+| Phone sideways layout | tabs become a left rail; status, info strip, odds/hint and actions sit right of the board; new-game, setup, settings and Study fit |
+| Double-tap Ready | opened the Resign box |
+| Hint | second tap cut it short; tapping a piece while it showed selected the hinted piece instead |
+| Back | left the Resign question open on another tab |
+| Edit setup | opened the variant last viewed in Setup, not the game's |
+| Before Ready | no way out; now Quit (local) / Leave (online) |
+| Two tabs of one game | overwrote each other; now the stale tab reloads the newer game ("This game moved on in another tab.") |
+| Online | double-tap Create/Join made 2 rooms; guest wasn't told when the host closed the room |
+| Toast | blocked taps on the buttons under it |
+| Phone info strip | fight line clipped when an enemy was tapped with a piece picked up |
+| Study | 6.5 s to open a 1,345-move game (WebKit); now ~0.2–0.6 s, move list fills just after |
+| 200% browser zoom | Study cut off |
+Laptop tilt (11°): taps land on the right square in Chrome and WebKit at 1280 and 1920 (92 cells each) — no fix needed.
+
 ## Measured strength (2026-10-20)
 Classic, 1,000 games each: Hard beats Medium 60.2% (±3.0), Hard beats Easy 96.4%, Medium beats Easy 89.3%, Easy beats random 85.4%.
 Barrage, 500 each (re-measured after the Flag-lane setup fix): Hard–Medium 53.2% (±4.4, not clearly above 50), Hard–Easy 88.0%, Medium–Easy 85.7%, Easy–random 68.2%.
@@ -30,6 +49,7 @@ Barrage, 500 each (re-measured after the Flag-lane setup fix): Hard–Medium 53.
 - "add risk, clue, battleship, connect four, stratego, ... to the list of games." (2026-10-20)
 - "add opptional sounds you can add to the games that reflect what's happening in the game accurately as well as win celebrations, and other fun annimations to go along with everything. Just make sure everything is customizable in the settings so the user can play as preffered." (2026-10-20)
 - "could you also make sure that each of the games also have a look to them so that the game (either board or card layout) looks almost identical to how the board or card layout looks like in real life ... It should look kind of like you're looking through a camera that is connected to a user's glasses that is playing in real life (not actually, but the layout and style of everything should be similar)." (2026-10-20)
+- "I've noticed the games often have good user interfaces but could be improved especially when a scenario happens that the game might've not really thought about or whatnot. Could you focus on making each game perfect especially in scenarios that the game doesn't expect or are a little weird." (2026-10-20)
 - Global rules apply: $0, no permission prompts, background-only testing, design-taste (no page scroll on main screens, phone bottom tabs, short labels, "?" explains why, choices in Settings).
 
 ## Traps
@@ -42,7 +62,11 @@ Barrage, 500 each (re-measured after the Flag-lane setup fix): Hard–Medium 53.
 - Finished games are told apart by `gid` (made in `E.newGame`, shown in `publicView`); never key on layouts or move count again (back-to-back resigns collided).
 - `render()` catches a failed draw and drops only the saved part that tab was showing (local game, last game, or one setup). Keep new tabs inside it.
 - Game buttons ignore a tap on a *different* button within 500 ms (Ready turns into Resign under the finger). Test scripts must wait >500 ms between them.
-- Bump every `?v=` (index.html, worker.js, the Worker URL and the online import) on each push. Now at v=5 (online import v=6).
+- Bump every changed file's `?v=` on each push. index.html scripts now v=6; worker.js and the Worker URL v=5; online import v=6.
+- Phone sideways (`LANDSCAPE`, max-height 540): `#app` is a row with a 64 px tab rail on the left; `#game` is a grid and `.gstatus` is `display: contents`. Test sideways screens with the rail in mind (nothing sits under a bottom bar).
+- Two tabs: `syncFromStorage()` runs before every local move, on the `storage` event and before the computer moves; it reloads the game when storage holds a newer ply/phase of the same `gid`. It is skipped when saving failed (`saveOk`), so blocked storage still plays.
+- Online: `roomJob()` runs Create/Join one at a time (`net.busy`); `net.sentAt/sentPly` ignores board taps for up to 5 s after sending a move; `net.leaving` stops the "room was closed" toast on your own Leave.
+- Study: games over 300 moves build the move list one frame after the board (`studyRows` in a rAF+timeout). Kept positions are shallow copies without `hist`.
 - `js/fx.js`, `js/table.js`, `css/table.css` are byte copies of `_fx` / `_table`; `.gitattributes` marks them `-text`. After a merge on Windows the main checkout of fx.js can still be CRLF: `cmp` against the source and re-copy (git sees no change).
 - The game board sits in `.bframe` (printed margins `--fe` ends / `--fs` sides, read by `sizeBoard`); on laptop the frame is tilted and pulled up by a negative margin that `sizeBoard` adds back as height. Phone landscape (`LANDSCAPE` media query, max-height 540) has its own sizeBoard branch.
 - Headless WebKit on Windows draws the laptop tilt flat (no foreshortening); Chrome draws it right. Screenshot the tilt with `--engine chrome`.
@@ -90,7 +114,9 @@ Opponent sounds play at 0.85 volume. Fast = 0.55× delays; Animations off = soun
 - Fight popup motion and the turn glow checked only in WebKit headless screenshots, not on a real iPhone.
 - In Barrage, Hard is not clearly stronger than Medium (53.2% ±4.4).
 - Sound & effects: nothing was heard (headless WebKit on Windows has no Web Audio); checked by spying on `FX.play` in node and in WebKit. How the custom `clash`/`defuse`/`deploy` sounds actually sound, and the iPhone silent switch, need Tim's ears. Online sounds checked only through the shared snapshot path in node, not in two live browsers.
-- Real-table look: laptop tilt checked only in Chrome headless (WebKit headless renders it flat; real Safari not seen). Phone board shrank 367→330 px at 393 px (the board margins hold the removed pieces); at 659×393 landscape the board is ~231 px (before: page cut off). Removed-piece stacks are small on phone (~14 px). Choices Tim didn't make: dark wood table; removed pieces in the board's end margins (not on the table beside it); no seat name on the board; no tilt on phone (tap size); new-game/lobby screens stay plain dark; fight popup kept as a card.
+- Real-table look: laptop tilt checked only in Chrome headless (WebKit headless renders it flat; real Safari not seen). Phone board shrank 367→330 px at 393 px (the board margins hold the removed pieces); edge pass brought it back to 342, and 334 sideways. Removed-piece stacks are small on phone (~14 px). Choices Tim didn't make: dark wood table; removed pieces in the board's end margins (not on the table beside it); no seat name on the board; no tilt on phone (tap size); new-game/lobby screens stay plain dark; fight popup kept as a card.
+- Edge pass: iPhone notch in sideways (safe-area insets added, no device), page in the background 10 min, two fights within 1.25 s (timer now reset per fight), sound/effect switches flipped mid-game. A host who drops out takes ~75 s before the guest gets the room (shared `_online` STALE_MS; not changed). The "fails on old code" run for the Back/Resign and Study checks crashed node on the old build, so those two rely on the harness before-results (box stayed open; 6.5 s).
+- Edge-pass choices Tim didn't make: left tab rail when the phone is sideways; status/odds/hint/actions to the right of the board sideways; Quit/Leave ghost button before Ready; tighter phone spacing (5 px); shorter odds bars while the fight line shows; toasts let taps through; new messages "The room was closed.", "You are no longer in the room.", "This game moved on in another tab.", "Could not reach the game server. Check your connection and try again."
 - Choices Tim didn't make: no turn chime vs the computer; "big" moment only for your own Spy-takes-Marshal; draw gets no celebration; Settings panel placed after Display.
 
 ## Rejected / parked

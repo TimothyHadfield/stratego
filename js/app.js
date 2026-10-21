@@ -70,8 +70,9 @@
     return st;
   }
   let store = load();
+  let saveOk = true; // false while saving fails (private mode, full storage): then no other tab can be trusted either
   function save() {
-    try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { /* private mode: fine */ }
+    try { localStorage.setItem(KEY, JSON.stringify(store)); saveOk = true; } catch (e) { saveOk = false; /* private mode: fine */ }
   }
   function mySetup(variant) {
     if (!store.setups[variant]) store.setups[variant] = Bots.chooseSetup(variant, 'medium', Math.random);
@@ -160,6 +161,8 @@
   const tabHistory = [];
   function setTab(t, noPush) {
     if (t === tab) return;
+    // a question box belongs to the screen it was asked on (Back must not leave "Resign?" over another tab)
+    document.querySelectorAll('.confirm-back').forEach(b => b.remove());
     if (!noPush) { tabHistory.push(tab); try { history.pushState({ tab: t }, '', '#' + t); } catch (e) { /* ignore */ } }
     tab = t;
     document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
@@ -230,7 +233,34 @@
     } catch (e) { local = null; store.local = null; save(); }
   }
 
+  /** The same game open in another tab may have moved on: take its newer save (true if it did). */
+  function syncFromStorage() {
+    if (!local || local.g.phase === 'over' || !saveOk) return false;
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem(KEY)); } catch (e) { return false; }
+    if (!s || typeof s !== 'object') return false; // storage blocked or cleared: keep what is on screen
+    const mine = local.g, g = s.local && s.local.state;
+    if (g && g.gid === mine.gid) {
+      const sent = x => (x.layouts && x.layouts[0] ? 1 : 0) + (x.layouts && x.layouts[1] ? 1 : 0);
+      if (g.ply === mine.ply && g.phase === mine.phase && sent(g) === sent(mine)) return false;
+    }
+    // it moved on, finished, was quit, or another game was started there: show what the other tab saved
+    clearTimeout(botTimer);
+    store = load(); local = null; resetBoard(); resumeLocal();
+    ui.sel = -1; ui.hint = null; ui.focus = -1;
+    return true;
+  }
+  window.addEventListener('storage', e => {
+    if (e.key !== KEY && e.key !== null) return;
+    if (local && syncFromStorage()) { render(); scheduleComputer(); return; }
+    if (!local && !net.room) { // nothing running here: pick up a game started in the other tab
+      store = load(); resumeLocal();
+      if (local) { resetBoard(); render(); scheduleComputer(); } else if (tab === 'play') render();
+    }
+  });
+
   function localAct(action) {
+    if (syncFromStorage()) { render(); scheduleComputer(); toast('This game moved on in another tab.'); return false; }
     try { E.apply(local.g, local.me, action); }
     catch (e) { sfx('error'); toast(e.message); return false; }
     afterLocalChange();
@@ -246,6 +276,8 @@
     clearTimeout(botTimer);
     if (!local || local.g.phase !== 'play' || local.g.turn === local.me) return;
     botTimer = setTimeout(() => {
+      // another tab of this game may already have made the computer's move
+      if (syncFromStorage()) { render(); scheduleComputer(); return; }
       if (!local || local.g.phase !== 'play' || local.g.turn === local.me) return;
       const bot = 1 - local.me;
       const m = Bots.chooseMove(E.publicView(local.g), E.privateView(local.g, bot), bot, local.level, Math.random);
@@ -267,44 +299,66 @@
   }
 
   // ------------------------------------------------------------------ online
+  let onlineP = null;
+  /** Load the online module once (two quick taps must not make two connections). */
   function loadOnline() {
-    if (net.mod) return Promise.resolve(net.mod);
-    return import(new URL('js/online.js?v=6', location.href).href).then(mod => {
+    if (!onlineP) onlineP = import(new URL('js/online.js?v=6', location.href).href).then(mod => {
       net.mod = mod;
       net.room = mod.createOnline({ game: StrOnlineGame.game, gameId: 'stratego', botDelayMs: 700 });
       net.room.on('change', snap => {
+        const was = net.snap;
         net.snap = snap;
         if (snap.status === 'finished' && snap.pub && snap.pub.result) finishGame(snap.pub.result, snap.pub, snap.mySeat, 'online', null);
+        if (snap.status === 'closed' || snap.status === 'left') {
+          // the room went away under us (host closed it, or we were taken out): say so instead of silently dropping to the menu
+          if (!net.leaving && store.inRoom && was && was.status !== 'closed' && was.status !== 'left') toast(snap.status === 'closed' ? 'The room was closed.' : 'You are no longer in the room.');
+          store.inRoom = false; save(); resetBoard();
+        }
+        if (!snap.pub || snap.pub.ply !== net.sentPly) net.sentAt = 0; // our move arrived (or the game changed)
         render();
       });
       net.room.on('error', msg => toast(String(msg && msg.message ? msg.message : msg)));
       return mod;
-    });
+    }).catch(err => { onlineP = null; throw err; });
+    return onlineP;
   }
   function onlineCall(p, okMsg) {
     return p.then(r => { if (!r || !r.ok) toast((r && r.message) || 'Something went wrong.'); else if (okMsg) toast(okMsg); return r; });
   }
-  async function createRoom() {
-    const name = ($('#on-name') && $('#on-name').value.trim()) || store.settings.name || 'Player';
-    store.settings.name = name.slice(0, 20); save();
-    await loadOnline();
-    const ng = store.newGame;
-    const r = await onlineCall(net.room.createRoom({ name, seats: ['human', 'empty'], options: Object.assign({ variant: ng.variant, level: ng.level }, rulesFromSettings()) }));
-    if (r && r.ok) { store.inRoom = true; save(); }
-    render();
+  /** At most 20 characters, never cutting an emoji in half. */
+  const cut20 = str => { let out = ''; for (const ch of str) { if (out.length + ch.length > 20) break; out += ch; } return out; };
+  /** Create / join run one at a time; a network failure says so instead of doing nothing. */
+  async function roomJob(job) {
+    if (net.busy) return;
+    net.busy = true;
+    try { await job(); }
+    catch (e) { toast('Could not reach the game server. Check your connection and try again.'); }
+    finally { net.busy = false; render(); }
   }
-  async function joinRoom() {
-    const name = ($('#on-name') && $('#on-name').value.trim()) || store.settings.name || 'Player';
+  function createRoom() {
+    return roomJob(async () => {
+      const name = cut20(($('#on-name') && $('#on-name').value.trim()) || store.settings.name || 'Player');
+      store.settings.name = name; save();
+      await loadOnline();
+      const ng = store.newGame;
+      const r = await onlineCall(net.room.createRoom({ name, seats: ['human', 'empty'], options: Object.assign({ variant: ng.variant, level: ng.level }, rulesFromSettings()) }));
+      if (r && r.ok) { store.inRoom = true; save(); }
+    });
+  }
+  function joinRoom() {
+    const name = cut20(($('#on-name') && $('#on-name').value.trim()) || store.settings.name || 'Player');
     const code = ($('#on-code') && $('#on-code').value.trim().toUpperCase()) || '';
     if (code.length < 5) { toast('Type the 5-letter room code.'); return; }
-    store.settings.name = name.slice(0, 20); save();
-    await loadOnline();
-    const r = await onlineCall(net.room.joinRoom(code, name));
-    if (r && r.ok) { store.inRoom = true; save(); }
-    render();
+    return roomJob(async () => {
+      store.settings.name = name; save();
+      await loadOnline();
+      const r = await onlineCall(net.room.joinRoom(code, name));
+      if (r && r.ok) { store.inRoom = true; save(); }
+    });
   }
   async function leaveRoom() {
-    if (net.room) await net.room.leave();
+    net.leaving = true;
+    try { if (net.room) await net.room.leave(); } finally { net.leaving = false; }
     store.inRoom = false; save();
     net.snap = null;
     resetBoard();
@@ -314,7 +368,9 @@
     const s = snapNow();
     if (!s) return;
     if (s.mode === 'local') return localAct(action);
-    net.room.act(action).then(r => { if (!r || !r.ok) { sfx('error'); toast((r && r.message) || 'Move not sent.'); } });
+    // until the room shows our move, more taps on the board would only send moves it will refuse
+    if (action.type === 'move') { net.sentAt = Date.now(); net.sentPly = s.pub.ply; }
+    net.room.act(action).then(r => { if (!r || !r.ok) { net.sentAt = 0; sfx('error'); toast((r && r.message) || 'Move not sent.'); render(); } });
     return true;
   }
 
@@ -384,11 +440,11 @@
         // a tilted board (laptop) is pulled up by a negative margin: its far end looks further away, so it can be taller
         const lift = fr ? -(parseFloat(fr.marginTop) || 0) : 0;
         size = Math.min(window.innerHeight - top - 20 - ex + lift, window.innerWidth - 400 - 80 - sx);
-      } else if (col.id === 'g-board' && LANDSCAPE.matches) {
-        // a phone on its side: the board on the left under the status line, the panels on the right
+      } else if (LANDSCAPE.matches) {
+        // a phone on its side: the board takes the whole height on the left, everything else sits on the right
         const parent = col.parentElement;
         const top = col.getBoundingClientRect().top - parent.getBoundingClientRect().top;
-        size = Math.min(parent.clientHeight - top - 2 - ex, parent.clientWidth * 0.6 - sx);
+        size = Math.min(parent.clientHeight - top - 2 - ex, parent.clientWidth * (col.id === 'st-board' ? 0.52 : 0.6) - sx);
       } else {
         // the board gets the height its column-mates leave free (a part marked data-min counts as that height)
         const parent = col.parentElement;
@@ -401,7 +457,7 @@
         const avail = parent.clientHeight - used - (parseFloat(getComputedStyle(parent).rowGap) || 0) * n - 2;
         size = Math.min((col.clientWidth || window.innerWidth - 24) - sx, avail - ex);
       }
-      size = Math.max(col.id === 'g-board' && LANDSCAPE.matches && !wide ? 160 : 240, Math.floor(size));
+      size = Math.max(LANDSCAPE.matches && !wide ? 160 : 240, Math.floor(size));
       b.style.width = size + 'px';
       b.style.height = size + 'px';
     });
@@ -410,7 +466,10 @@
   window.addEventListener('resize', () => {
     const wide = window.innerWidth >= 900;
     if (wide !== wasWide) { wasWide = wide; render(); } else sizeBoard();
+    // turning a phone: some browsers update the layout queries only after this event
+    requestAnimationFrame(sizeBoard);
   });
+  try { LANDSCAPE.addEventListener('change', () => sizeBoard()); } catch (e) { /* very old Safari: the resize above still runs */ }
 
   /** Draw pieces for a snapshot. `reveal` = show every rank (study / game over). */
   function drawPieces(bw, pub, mine, me, opts) {
@@ -478,6 +537,7 @@
   function showFight(bw, me, h, pub, own) {
     // h: {s, b:{ar, dr, out}}: who attacked whom and what happened
     const fx = bw.querySelector('.fx');
+    clearTimeout(ui.fight); // a second fight right after the first gets its full time on screen
     const attMine = h.s === me;
     const ar = h.b.ar;
     const dr = h.b.dr !== null ? h.b.dr : (!attMine && own[h.b.d] !== undefined ? own[h.b.d] : null);
@@ -506,6 +566,10 @@
     const sq = +cell.dataset.sq;
     const snap = snapNow();
     if (!snap || !snap.pub || snap.pub.phase !== 'play') return;
+    // online: our move is on its way; the board stays put until it arrives
+    if (snap.mode === 'online' && net.sentAt && Date.now() - net.sentAt < 5000 && snap.pub.ply === net.sentPly) return;
+    // a tap means the player is choosing for themselves: the hint gives way at once
+    if (ui.hint) { ui.hint = null; clearTimeout(ui.hintTimer); }
     const c = snap.pub.cells[sq];
     const me = snap.mySeat;
     if (ui.sel >= 0 && snap.myTurn) {
@@ -733,6 +797,8 @@
     setHTML($('#log-side'), wide ? logHtml(pub, me) : '');
     sizeBoard();
   }
+  /** Late in a game every rank can be in the margin: when the stacks don't fit, they close up and the
+      count sits on the stack, so none is cut off. */
   /** One side's removed pieces as small stacks lying beside the board (highest rank first). */
   function graveHtml(pub, side, name) {
     const order = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 11, 0];
@@ -818,7 +884,9 @@
     const pub = snap.pub;
     if (pub.phase === 'setup') {
       if (snap.mine && snap.mine.layout) return snap.mode === 'online' ? '<button class="btn" data-a="leave">Leave room</button>' : '<button class="btn" data-a="quit">Quit</button>';
-      return '<button class="btn" data-a="editsetup">Edit setup</button><button class="btn primary" data-a="ready">Ready</button>';
+      // a way out before the army goes in (started the wrong game, changed one's mind)
+      return (snap.mode === 'online' ? '<button class="btn ghost out" data-a="leave">Leave</button>' : '<button class="btn ghost out" data-a="quit">Quit</button>') +
+        '<button class="btn" data-a="editsetup">Edit setup</button><button class="btn primary" data-a="ready">Ready</button>';
     }
     if (pub.phase === 'over') {
       return '<button class="btn" data-a="study">Study game</button>' + (snap.mode === 'online' ? '<button class="btn" data-a="leave">Leave room</button>' : '<button class="btn primary" data-a="newgame">New game</button>');
@@ -852,11 +920,16 @@
       case 'hint': {
         if (!snap || !snap.myTurn) return;
         const m = Bots.hint(snap.pub, snap.mine, snap.mySeat, Math.random);
-        if (m) { ui.hint = m; ui.sel = -1; toast('Hint: ' + E.sqName(m.from, snap.mySeat) + ' → ' + E.sqName(m.to, snap.mySeat)); render(); setTimeout(() => { ui.hint = null; render(); }, 2600); }
+        if (m) {
+          ui.hint = m; ui.sel = -1; toast('Hint: ' + E.sqName(m.from, snap.mySeat) + ' → ' + E.sqName(m.to, snap.mySeat)); render();
+          // one timer: a second Hint restarts the full time instead of being cut short by the first
+          clearTimeout(ui.hintTimer);
+          ui.hintTimer = setTimeout(() => { if (ui.hint === m) { ui.hint = null; render(); } }, 2600);
+        }
         break;
       }
       case 'resign': confirmBox('Resign this game?', 'Resign', () => act({ type: 'resign' })); break;
-      case 'editsetup': setTab('setup'); break;
+      case 'editsetup': su.variant = snap.pub.opts.variant; su.sel = -1; setTab('setup'); break; // the army for this game's variant
       case 'ready': {
         const variant = snap.pub.opts.variant;
         act({ type: 'setup', layout: E.layoutFromOwn(mySetup(variant), snap.mySeat) });
@@ -867,6 +940,8 @@
       case 'quit': confirmBox('Quit this game?', 'Quit', () => { local = null; store.local = null; save(); resetBoard(); render(); }); break;
       case 'leave': confirmBox('Leave the room? A computer takes your seat.', 'Leave', leaveRoom); break;
     }
+    // slow work above (odds at the start of a game) must not let a double tap's second half through
+    ui.tapAt = Date.now();
   }
 
   // ================================================================== SETUP TAB
@@ -1027,12 +1102,17 @@
     const g = E.newGame(last.opts, last.names);
     E.apply(g, 0, { type: 'setup', layout: last.layouts[0] });
     E.apply(g, 1, { type: 'setup', layout: last.layouts[1] });
-    const states = [JSON.parse(JSON.stringify(g))];
+    // each kept position leaves out the move list (nothing here reads it), so a 1,000-move game
+    // copies 1,000 boards instead of half a million moves
+    const J = x => x === null || x === undefined ? x : JSON.parse(JSON.stringify(x));
+    const copy = () => Object.assign({}, g, { hist: [], pieces: g.pieces.map(p => p && Object.assign({}, p)), board: g.board.slice(),
+      streak: J(g.streak), last: J(g.last), chase: J(g.chase), cons: Object.assign({}, g.cons), result: J(g.result) });
+    const states = [copy()];
     for (const h of last.hist) {
       if (g.phase !== 'play') break;
       g.turn = h.s;
       E.doMove(g, h.s, h.f, h.t);
-      states.push(JSON.parse(JSON.stringify(g)));
+      states.push(copy());
     }
     return states;
   }
@@ -1105,8 +1185,16 @@
       side.innerHTML = '<div class="row"><b class="grow">' + esc(resultText(res, me)) + '</b><span class="muted" style="font-size:12px">' + esc(last.mode === 'computer' ? 'vs ' + LEVEL_NAME[last.level] : 'online') + '</span></div>' +
         '<div class="chart">' + chartSvg(myMat, theirMat, st.idx) + '</div>' +
         '<div class="row"><span class="label grow">Your moves</span>' + q('lost') + (st.analysis ? '' : '<button class="btn small" data-a="analyze"' + (st.running ? ' disabled' : '') + '>' + (st.running ? analysisLabel() : 'Check my moves') + '</button>') + '</div>' +
-        '<div class="scroll" style="flex:1"><table class="turns"><thead><tr><th>#</th><th>Move</th><th>Note</th></tr></thead><tbody>' + studyRows(last, me) + '</tbody></table></div>';
+        '<div class="scroll" style="flex:1"><table class="turns"><thead><tr><th>#</th><th>Move</th><th>Note</th></tr></thead><tbody>' + (last.hist.length > 300 ? '' : studyRows(last, me)) + '</tbody></table></div>';
       side._key = sideKey;
+      // a very long game: show the board first and fill the move list just after, so the tab opens at once
+      if (last.hist.length > 300) requestAnimationFrame(() => setTimeout(() => {
+        if (side._key !== sideKey || !side.isConnected) return;
+        const tb = side.querySelector('tbody'); if (!tb || tb.firstChild) return;
+        tb.innerHTML = studyRows(last, me);
+        const c = side.querySelector('tr[data-i="' + st.idx + '"]');
+        if (c) { c.classList.add('cur'); c.scrollIntoView({ block: 'nearest' }); }
+      }, 0));
     } else {
       const x = (st.idx / Math.max(1, myMat.length - 1) * 100).toFixed(3);
       const ln = side.querySelector('.chart line');
