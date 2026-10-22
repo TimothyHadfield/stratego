@@ -419,6 +419,14 @@
     frame.appendChild(boardEl);
     frame.insertAdjacentHTML('beforeend', '<div class="grave near" id="grave-near"></div>');
     host.appendChild(frame);
+    // the margins are small on a phone: a tap shows the removed pieces full size
+    frame.addEventListener('click', e => {
+      const g = e.target.closest('.grave');
+      const snap = g && snapNow();
+      if (!snap || !snap.pub || snap.pub.phase === 'setup') return;
+      e.stopPropagation();
+      pop(g, graveBigHtml(snap.pub, snap.mySeat < 0 ? 0 : snap.mySeat));
+    });
     boardEl.addEventListener('click', onBoardClick);
     sizeBoard();
     return boardEl;
@@ -469,7 +477,8 @@
     // turning a phone: some browsers update the layout queries only after this event
     requestAnimationFrame(sizeBoard);
   });
-  try { LANDSCAPE.addEventListener('change', () => sizeBoard()); } catch (e) { /* very old Safari: the resize above still runs */ }
+  // turning the phone moves the odds/hint buttons (status line sideways, button row upright), so redraw
+  try { LANDSCAPE.addEventListener('change', () => { render(); sizeBoard(); }); } catch (e) { /* very old Safari: the resize above still runs */ }
 
   /** Draw pieces for a snapshot. `reveal` = show every rank (study / game over). */
   function drawPieces(bw, pub, mine, me, opts) {
@@ -727,10 +736,14 @@
     const waiting = pub.phase === 'play' && !myTurn;
     bw.classList.toggle('turn-0', pub.phase === 'play' && myTurn && me === 0);
     bw.classList.toggle('turn-1', pub.phase === 'play' && myTurn && me === 1);
+    // an upright phone: the odds/hint buttons sit in the button row under the board, so the status
+    // line stays one short line and the board gets that height
+    const portrait = window.innerWidth < 900 && !LANDSCAPE.matches;
+    const icons = pub.phase === 'play' ? '<button class="icon-btn" data-a="odds" aria-pressed="' + store.settings.showOdds + '" title="Odds on pieces"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></button>' +
+        '<button class="icon-btn" data-a="hint" title="Hint"' + (myTurn ? '' : ' disabled') + '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg></button>' : '';
     setHTML($('#g-status'), '<div class="turnchip' + (pub.phase === 'play' && myTurn ? ' mine' : '') + '"><span class="dot' + (waiting ? ' pulse' : '') + '" style="background:' + (pub.phase === 'play' ? (pub.turn ? 'var(--blue)' : 'var(--red)') : color) + '"></span><span class="st">' + status + '</span><span class="sub">' + esc(sub) + '</span></div>' +
       (snap.mode === 'online' && snap.code ? '<span class="muted" style="font-size:12px">' + esc(snap.code) + '</span>' : '') +
-      (pub.phase === 'play' ? '<button class="icon-btn" data-a="odds" aria-pressed="' + store.settings.showOdds + '" title="Odds on pieces"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></button>' +
-        '<button class="icon-btn" data-a="hint" title="Hint"' + (myTurn ? '' : ' disabled') + '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg></button>' : ''));
+      (portrait ? '' : icons));
 
     // board contents
     let dests = null, badges = null;
@@ -790,7 +803,7 @@
     // only touch what changed, and only the layout on screen (phone strip or laptop side)
     const wide = window.innerWidth >= 900;
     setHTML($('#info-phone'), wide ? '' : info);
-    setHTML($('#acts-phone'), wide ? '' : acts);
+    setHTML($('#acts-phone'), wide ? '' : (portrait ? icons : '') + acts);
     setHTML($('#info-side'), wide ? info : '');
     setHTML($('#acts-side'), wide ? acts : '');
     setHTML($('#army-side'), wide ? armyHtml(snap, odds) : '');
@@ -810,6 +823,20 @@
       (k > 1 ? '<b>' + k + '</b>' : '') + '</span>';
     const html = order.filter(r => n[r]).map(r => stack(r, n[r])).join('') + (hidden ? stack(null, hidden) : '');
     return (name ? '<span class="seat"><i style="background:' + (side ? 'var(--blue)' : 'var(--red)') + '"></i>' + esc(name) + '</span>' : '') + '<span class="gl">' + html + '</span>';
+  }
+  /** Both margins at full size (opened by a tap on either margin). */
+  function graveBigHtml(pub, me) {
+    const order = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 11, 0];
+    const row = side => {
+      const n = {};
+      let hidden = 0;
+      for (const [o, , r] of pub.dead || []) if (o === side) { if (r === null) hidden++; else n[r] = (n[r] || 0) + 1; }
+      const one = (r, k) => '<span class="gb"><i>' + Art.flat(side, r, store.settings.numbering) + '</i>' + (k > 1 ? '<b>×' + k + '</b>' : '') + '</span>';
+      const html = order.filter(r => n[r]).map(r => one(r, n[r])).join('') + (hidden ? one(null, hidden) : '');
+      return html || '<span class="muted">None yet</span>';
+    };
+    return '<div class="gbig"><div class="label">Removed · theirs</div><div class="gbrow">' + row(1 - me) + '</div>' +
+      '<div class="label">Removed · yours</div><div class="gbrow">' + row(me) + '</div></div>';
   }
   const oneHot = r => { const a = new Float64Array(12); a[r] = 1; return a; };
   function truthFromLayouts(layouts) {
@@ -834,7 +861,7 @@
     const me = snap.mySeat;
     const { total, lost, hiddenDead } = armyCounts(pub, me);
     const order = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 11, 0];
-    return '<div class="row"><span class="label grow">Their army left</span>' + q('odds') + '</div><div class="ranks" style="margin-top:6px">' +
+    return '<div class="row"><span class="label grow">Their army left</span>' + q('odds') + '</div><div class="ranks army" style="margin-top:6px">' +
       order.filter(r => total[r]).map(r => {
         const left = total[r] - lost[r];
         return '<div class="rk' + (left ? '' : ' zero') + '"><div class="mini">' + Art.piece(1 - me, r, store.settings.numbering) + '</div><b>' + left + '</b><span>/' + total[r] + '</span></div>';
@@ -1157,7 +1184,7 @@
     const g = states[st.idx];
     if (!v.querySelector('.study.has')) {
       v.innerHTML = '<div class="study has"><div class="st-top"><div class="tabs2" id="st-tabs"></div><div class="stepper" style="margin-top:6px"><button class="icon-btn" data-a="prev" aria-label="Back one move"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 6l-6 6 6 6"/></svg></button><input type="range" id="st-range" min="0"><button class="icon-btn" data-a="next" aria-label="Forward one move"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg></button><span class="muted" id="st-n" style="font-size:12.5px;min-width:64px;text-align:right"></span></div></div>' +
-        '<div class="st-board boardcol" id="st-board"></div><div class="st-side panel" id="st-side" data-min="218" style="min-height:0;flex:1;display:flex;flex-direction:column;gap:6px"></div></div>';
+        '<div class="st-board boardcol" id="st-board"></div><div class="st-side panel" id="st-side" data-min="190" style="min-height:0;flex:1;display:flex;flex-direction:column;gap:6px"></div></div>';
       v.onclick = onStudyClick;
       v.oninput = e => { if (e.target.id === 'st-range') { st.idx = +e.target.value; renderStudy(); } };
       resetStudyBoard();
