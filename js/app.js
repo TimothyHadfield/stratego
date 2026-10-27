@@ -31,6 +31,7 @@
     settings: { numbering: 'modern', prior: 'real', showOdds: true, scoutStrike: true, twoSq: 3, chase: true, aggressor: false, silent: false, name: '' },
     newGame: { mode: 'computer', level: 'medium', variant: 'classic', color: 0 },
     setups: { classic: null, barrage: null },
+    armies: { classic: [], barrage: [] },
     local: null,
     last: null,
     record: { easy: [0, 0], medium: [0, 0], hard: [0, 0] },
@@ -60,6 +61,9 @@
     st.newGame.variant = ng.variant === 'barrage' ? 'barrage' : 'classic';
     st.newGame.color = ng.color === 1 ? 1 : 0;
     if (s.setups) for (const v of ['classic', 'barrage']) if (validOwn(s.setups[v], v)) st.setups[v] = s.setups[v];
+    if (s.armies) for (const v of ['classic', 'barrage']) if (Array.isArray(s.armies[v])) {
+      st.armies[v] = s.armies[v].filter(x => x && typeof x.name === 'string' && validOwn(x.own, v)).slice(0, 6).map(x => ({ name: x.name.slice(0, 24), own: x.own }));
+    }
     if (s.local && s.local.state && s.local.state.v === 1 && (s.local.me === 0 || s.local.me === 1) && LEVELS.includes(s.local.level)) st.local = s.local;
     const L = s.last;
     if (L && typeof L === 'object' && Array.isArray(L.hist) && Array.isArray(L.layouts) && L.layouts.length === 2 &&
@@ -171,6 +175,8 @@
   }
   $('#tabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (b) setTab(b.dataset.tab); });
   window.addEventListener('popstate', ev => {
+    // Back closes the rules sheet first
+    if (window.COACH && COACH.rulesOpen()) { COACH.closeRules(); try { history.pushState({ tab }, '', '#' + tab); } catch (e) { /* ignore */ } return; }
     const t = (ev.state && ev.state.tab) || (location.hash || '#play').slice(1);
     if (['play', 'setup', 'study', 'settings'].includes(t)) setTab(t, true);
   });
@@ -199,23 +205,45 @@
     };
   }
 
-  function startLocal() {
+  /** A new game vs the computer. x (optional): {variant, level, color, rules, enemy (own-view army), daily, tutorial}. */
+  function startLocal(x) {
+    x = x || {};
     const ng = store.newGame;
-    const me = ng.color;
+    const me = x.color != null ? x.color : ng.color;
+    const variant = x.variant || ng.variant, level = x.level || ng.level;
     const names = me === 0 ? ['You', 'Computer'] : ['Computer', 'You'];
-    const g = E.newGame(Object.assign({ variant: ng.variant }, rulesFromSettings()), names);
+    const g = E.newGame(Object.assign({ variant }, x.rules || rulesFromSettings()), names);
     // the computer sends its army straight away
     const rng = Math.random;
-    E.apply(g, 1 - me, { type: 'setup', layout: E.layoutFromOwn(Bots.chooseSetup(ng.variant, ng.level, rng), 1 - me) });
-    local = { g, me, level: ng.level };
+    E.apply(g, 1 - me, { type: 'setup', layout: E.layoutFromOwn(x.enemy || Bots.chooseSetup(variant, level, rng), 1 - me) });
+    local = { g, me, level, helped: false, daily: x.daily || null, tutorial: !!x.tutorial };
+    undoStack.length = 0;
     ui.sel = -1; ui.focus = -1; ui.hint = null; ui.lastHistLen = 0;
     resetBoard();
     persistLocal();
     render();
   }
   function persistLocal() {
-    store.local = local ? { state: local.g, me: local.me, level: local.level } : null;
+    store.local = local ? { state: local.g, me: local.me, level: local.level, helped: !!local.helped, daily: local.daily || null, tutorial: !!local.tutorial } : null;
     save();
+  }
+  // Undo (vs the computer only, never in the Daily): the game as it was before each of your moves (this visit only)
+  const undoStack = [];
+  let tour = null; // the guided first game (js/tutorial.js + shared js/coach.js)
+  const canUndo = () => !!(local && local.g.phase === 'play' && !local.daily && undoStack.length);
+  function undo() {
+    if (!canUndo()) return;
+    clearTimeout(botTimer);
+    local.g = JSON.parse(undoStack.pop());
+    local.helped = true;
+    ui.sel = -1; ui.focus = -1; ui.hint = null;
+    ui.lastHistLen = (local.g.histFrom || 0) + local.g.hist.length;
+    if (hasFX) StrSfx.forget();
+    persistLocal();
+    sfx('slide');
+    render();
+    toast('Took back your last move');
+    scheduleComputer();
   }
   /** Bring back the saved game; a save that doesn't hold a whole game is dropped (and only that). */
   function resumeLocal() {
@@ -229,7 +257,8 @@
       E.toAct(g); E.publicView(g); E.privateView(g, me);
       if (g.phase === 'play') E.legalMoves(g, g.turn);
       if (!g.gid) g.gid = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-      local = { g, me, level: store.local.level }; ui.lastHistLen = g.hist.length;
+      local = { g, me, level: store.local.level, helped: !!store.local.helped, daily: typeof store.local.daily === 'string' ? store.local.daily : null, tutorial: !!store.local.tutorial };
+      ui.lastHistLen = g.hist.length;
     } catch (e) { local = null; store.local = null; save(); }
   }
 
@@ -247,6 +276,7 @@
     // it moved on, finished, was quit, or another game was started there: show what the other tab saved
     clearTimeout(botTimer);
     store = load(); local = null; resetBoard(); resumeLocal();
+    undoStack.length = 0; // the other tab's game: our take-backs no longer fit it
     ui.sel = -1; ui.hint = null; ui.focus = -1;
     return true;
   }
@@ -261,8 +291,11 @@
 
   function localAct(action) {
     if (syncFromStorage()) { render(); scheduleComputer(); toast('This game moved on in another tab.'); return false; }
+    const before = action.type === 'move' && !local.daily ? JSON.stringify(local.g) : null;
     try { E.apply(local.g, local.me, action); }
     catch (e) { sfx('error'); toast(e.message); return false; }
+    if (before) { undoStack.push(before); if (undoStack.length > 30) undoStack.shift(); }
+    if (local.tutorial && window.COACH) COACH.update();
     afterLocalChange();
     return true;
   }
@@ -293,9 +326,64 @@
     const key = mode + ':' + (pub.gid || JSON.stringify([pub.layouts, pub.hist.length, result]));
     if (store.last && store.last.key === key) return;
     store.last = { key, opts: pub.opts, layouts: pub.layouts, hist: pub.hist, me, names: pub.names, result, mode, level: level || null };
-    if (mode === 'computer' && level && result.winner !== -1) store.record[level][result.winner === me ? 0 : 1]++;
+    const meta = mode === 'computer' && local ? local : {};
+    if (mode === 'computer' && level && result.winner !== -1 && !meta.tutorial) store.record[level][result.winner === me ? 0 : 1]++;
     store.local = null;
+    undoStack.length = 0;
     save();
+    // My stats: a guided game never counts; Hint or Undo makes it "with help" (not rated)
+    if (mode === 'computer' && !meta.tutorial && window.Profile && window.StrProfile) {
+      const r = StrProfile.result(pub, me, level, { helped: meta.helped, daily: !!meta.daily });
+      if (meta.daily) r.date = meta.daily;
+      try { Profile.recordResult(r); } catch (e) { /* stats never break the game */ }
+    }
+    if (meta.tutorial && tour) tour.stop();
+  }
+
+  /** Leave the local game on the table: one in play is resigned (a loss in My stats); a Daily left at any
+      point is a loss too, so it can't be retried. Then `then()`. Asks first when there is something to lose. */
+  function leaveLocal(then) {
+    if (!local || local.g.phase === 'over') { then(); return; }
+    const playing = local.g.phase === 'play';
+    if (!playing && !local.daily) { local = null; store.local = null; save(); resetBoard(); then(); return; }
+    confirmBox(local.daily ? 'Leave today\'s Daily game? It counts as a loss.' : 'Resign your game in progress? It counts as a loss.', playing ? 'Resign' : 'Leave', () => {
+      if (playing) { E.apply(local.g, local.me, { type: 'resign' }); finishGame(local.g.result, E.publicView(local.g), local.me, 'computer', local.level); }
+      else if (window.Profile) { try { Profile.recordResult({ mode: local.helped ? 'help' : 'computer', level: local.helped ? null : local.level, won: false, daily: true, date: local.daily }); } catch (e) { /* ignore */ } }
+      clearTimeout(botTimer); local = null; store.local = null; undoStack.length = 0; save(); resetBoard();
+      then();
+    });
+  }
+
+  // ------------------------------------------------------------------ My stats, Daily game, rules, guided first game
+  function startDaily() {
+    if (!window.Profile || !window.StrProfile) return;
+    const day = Profile.daily.date();
+    if (local && local.daily === day && local.g.phase !== 'over') { Profile.closePanel(); setTab('play'); toast('Your Daily game is on the table'); return; }
+    if (Profile.daily.played(day)) { Profile.openPanel({ tab: 'daily' }); return; }
+    if (net.room && net.snap && store.inRoom) { Profile.closePanel(); toast('Leave the online room first'); return; }
+    Profile.closePanel();
+    leaveLocal(() => {
+      const d = StrProfile.dailyGame(Profile.daily.rng(day), Bots);
+      startLocal({ variant: d.variant, level: d.level, color: d.color, rules: d.rules, enemy: d.enemy, daily: day });
+      setTab('play');
+      toast('Daily game: you (Red) against Hard, the same army for everyone today');
+    });
+  }
+  function openRules() { if (window.COACH && window.StrTutorial) { closePop(); COACH.rules(StrTutorial.rules()); } }
+  function startTutorial() {
+    if (!window.COACH || !tour || !window.StrTutorial) return;
+    if (net.room && net.snap && store.inRoom) { toast('Leave the online room first'); return; }
+    leaveLocal(() => {
+      const rng = COACH.rng(StrTutorial.SEED);
+      tour.reset();
+      startLocal({ variant: 'classic', level: 'easy', color: 0, rules: { scoutStrike: true, twoSq: 3, chase: true, aggressor: false, silent: false }, enemy: Bots.chooseSetup('classic', 'easy', rng), tutorial: true });
+      setTab('play');
+      tour.start();
+    });
+  }
+  function offerTutorial() {
+    if (!window.COACH || !tour || tour.seen() || COACH.offered('stratego-first') || local || store.last) return;
+    COACH.offer({ id: 'stratego-first', title: 'New to Stratego?', text: 'A guided first game against the Easy computer: moving, fights and the odds, one step at a time.', yes: 'Teach me', no: 'No thanks', onYes: () => startTutorial() });
   }
 
   // ------------------------------------------------------------------ online
@@ -642,8 +730,11 @@
       (ng.mode === 'computer' ? '<div class="label">You play</div>' + seg('color', [[0, 'Red', 'moves first'], [1, 'Blue', '']], ng.color) +
         '<button class="btn primary" data-a="start">Start game</button>' : '') +
       '</div>' +
+      (window.Profile ? '<div class="row extras"><button class="btn small grow pf-open" data-a="me">' + Profile.avatarSVG(Profile.avatar, 24) + 'My stats</button>' +
+        '<button class="btn small grow" data-a="daily">Daily game</button>' + (window.COACH ? '<button class="btn small grow" data-a="rules">Rules</button>' : '') + '</div>' : '') +
       '<div class="muted" style="font-size:12.5px;text-align:center">Your army comes from the <b>Setup</b> tab. Rules switches are in Settings.</div>' +
       '</div>';
+    offerTutorial();
     v.onclick = e => {
       const b = e.target.closest('[data-seg] button');
       if (b) {
@@ -655,6 +746,9 @@
       const a = e.target.closest('[data-a]');
       if (!a) return;
       if (a.dataset.a === 'start') startLocal();
+      if (a.dataset.a === 'me') Profile.openPanel();
+      if (a.dataset.a === 'daily') startDaily();
+      if (a.dataset.a === 'rules') openRules();
       if (a.dataset.a === 'create') createRoom();
       if (a.dataset.a === 'join') joinRoom();
     };
@@ -918,7 +1012,9 @@
     if (pub.phase === 'over') {
       return '<button class="btn" data-a="study">Study game</button>' + (snap.mode === 'online' ? '<button class="btn" data-a="leave">Leave room</button>' : '<button class="btn primary" data-a="newgame">New game</button>');
     }
-    return '<button class="btn ghost" data-a="resign"' + (snap.myTurn ? '' : ' disabled') + '>Resign</button>' + (snap.mode === 'online' ? '<button class="btn" data-a="leave">Leave</button>' : '');
+    return '<button class="btn ghost" data-a="resign"' + (snap.myTurn ? '' : ' disabled') + '>Resign</button>' +
+      (snap.mode === 'online' ? '<button class="btn" data-a="leave">Leave</button>'
+        : local && !local.daily ? '<button class="btn" data-a="undo"' + (canUndo() ? '' : ' disabled') + '>Undo</button>' : '');
   }
 
   function logHtml(pub, me) {
@@ -947,6 +1043,7 @@
       case 'hint': {
         if (!snap || !snap.myTurn) return;
         const m = Bots.hint(snap.pub, snap.mine, snap.mySeat, Math.random);
+        if (m && snap.mode === 'local' && local && !local.helped) { local.helped = true; persistLocal(); }
         if (m) {
           ui.hint = m; ui.sel = -1; toast('Hint: ' + E.sqName(m.from, snap.mySeat) + ' → ' + E.sqName(m.to, snap.mySeat)); render();
           // one timer: a second Hint restarts the full time instead of being cut short by the first
@@ -956,6 +1053,7 @@
         break;
       }
       case 'resign': confirmBox('Resign this game?', 'Resign', () => act({ type: 'resign' })); break;
+      case 'undo': undo(); break;
       case 'editsetup': su.variant = snap.pub.opts.variant; su.sel = -1; setTab('setup'); break; // the army for this game's variant
       case 'ready': {
         const variant = snap.pub.opts.variant;
@@ -964,7 +1062,7 @@
       }
       case 'study': setTab('study'); break;
       case 'newgame': local = null; store.local = null; save(); resetBoard(); render(); break;
-      case 'quit': confirmBox('Quit this game?', 'Quit', () => { local = null; store.local = null; save(); resetBoard(); render(); }); break;
+      case 'quit': if (local && local.daily) { leaveLocal(() => render()); break; } confirmBox('Quit this game?', 'Quit', () => { local = null; store.local = null; save(); resetBoard(); render(); }); break;
       case 'leave': confirmBox('Leave the room? A computer takes your seat.', 'Leave', leaveRoom); break;
     }
     // slow work above (odds at the start of a game) must not let a double tap's second half through
@@ -1036,7 +1134,7 @@
       '<div class="su-head row">' + seg('suvariant', [['classic', 'Classic'], ['barrage', 'Barrage']], variant).replace('class="seg"', 'class="seg grow"') +
       (lockedGame ? '<button class="btn primary small" data-a="back">Back to game</button>' : '') + '</div>' +
       '<div class="su-grid"><div class="muted" style="font-size:12px;margin-bottom:4px">Front row (toward the enemy) on top · tap two squares to swap</div><div class="sugrid" id="sugrid"></div></div>' +
-      '<div class="su-tools"><div class="sutools"><button class="btn small" data-a="real">Real setup</button><button class="btn small" data-a="shuffle">Shuffle</button><button class="btn small" data-a="mirror">Mirror</button></div>' +
+      '<div class="su-tools"><div class="sutools"><button class="btn small" data-a="real">Real setup</button><button class="btn small" data-a="shuffle">Shuffle</button><button class="btn small" data-a="mirror">Mirror</button><button class="btn small" data-a="armies">Saved</button></div>' +
       (variant === 'classic' ? '<div class="row" style="margin-top:8px"><span class="label">Where players put</span>' + q('heat') + '</div>' +
       '<div class="heatpick" style="margin-top:4px">' + [-1, 0, 11, 1, 2, 3, 10, 9].map(r => '<button data-heat="' + r + '" aria-pressed="' + (heatRank === r) + '">' + (r < 0 ? 'Off' : lab(r)) + '</button>').join('') + '</div>' : '') + '</div>' +
       '<div class="su-side panel scroll fade" style="display:flex;flex-direction:column;gap:10px">' +
@@ -1104,7 +1202,36 @@
     if (a.dataset.a === 'mirror') { const o = mySetup(variant); store.setups[variant] = o.map((r, k) => o[Math.floor(k / 10) * 10 + 9 - (k % 10)]); save(); render(); }
     if (a.dataset.a === 'back') setTab('play');
     if (a.dataset.a === 'test') runTest(variant);
+    if (a.dataset.a === 'armies') { e.stopPropagation(); showArmies(a, variant); }
   }
+  // saved armies: up to 6 named setups per game type, kept on this device
+  const ARMY_MAX = 6;
+  function armiesHtml(variant) {
+    const list = store.armies[variant];
+    const cur = mySetup(variant).join(',');
+    return '<div class="armies"><div class="label">Saved armies · ' + (variant === 'barrage' ? 'Barrage' : 'Classic') + '</div>' +
+      (list.length ? list.map((x, i) => '<div class="arow' + (x.own.join(',') === cur ? ' on' : '') + '"><span class="grow">' + esc(x.name) + '</span>' +
+        '<button class="btn small" data-army="use" data-i="' + i + '">Use</button><button class="btn small ghost" data-army="del" data-i="' + i + '" aria-label="Delete">✕</button></div>').join('')
+        : '<div class="muted" style="font-size:13px">None yet. Save the army you have now to come back to it.</div>') +
+      '<button class="btn small primary" data-army="save"' + (list.length >= ARMY_MAX ? ' disabled' : '') + '>Save this army</button></div>';
+  }
+  function showArmies(btn, variant) { su.armyBtn = btn; pop(btn, armiesHtml(variant)); }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('.pop [data-army]');
+    if (!b || b.disabled) return;
+    const variant = suVariant(), list = store.armies[variant], i = +b.dataset.i;
+    if (b.dataset.army === 'save' && list.length < ARMY_MAX) {
+      let n = list.length + 1; while (list.some(x => x.name === 'Army ' + n)) n++;
+      list.push({ name: 'Army ' + n, own: mySetup(variant).slice() }); toast('Saved as Army ' + n);
+    }
+    if (b.dataset.army === 'use' && list[i]) { store.setups[variant] = list[i].own.slice(); su.sel = -1; sfx('slide'); }
+    if (b.dataset.army === 'del' && list[i]) list.splice(i, 1);
+    save();
+    const btn = su.armyBtn;
+    render(); // closes the box; it opens again on the redrawn button
+    const nb = $('#v-setup [data-a="armies"]');
+    if (nb && btn) showArmies(nb, variant);
+  });
   function runTest(variant) {
     const own = mySetup(variant).slice();
     let w;
@@ -1371,6 +1498,9 @@
     const s = store.settings;
     HELP.level = strengthHelp();
     v.innerHTML = '<div class="set scroll">' +
+      (window.COACH || window.Profile ? '<div class="panel"><div class="row extras">' +
+        (window.COACH ? '<button class="btn small grow" data-a="rules">Rules</button><button class="btn small grow" data-a="tutorial">Guided game</button>' : '') +
+        (window.Profile ? '<button class="btn small grow pf-open" data-a="me">' + Profile.avatarSVG(Profile.avatar, 24) + 'My stats</button>' : '') + '</div></div>' : '') +
       '<div class="panel"><div class="label">Display</div>' +
       '<div class="setrow"><div class="grow"><b>Numbering</b><span>' + (s.numbering === 'classic' ? 'Marshal 1 … Scout 9, Spy S' : 'Marshal 10 … Spy 1') + '</span></div>' + q('numbering') + '</div>' +
       seg('numbering', [['modern', 'Marshal = 10'], ['classic', 'Marshal = 1']], s.numbering) +
@@ -1397,6 +1527,9 @@
         save(); oddsCache.key = ''; resetBoard(); resetStudyBoard(); render(); return;
       }
       const a = e.target.closest('[data-a]');
+      if (a && a.dataset.a === 'rules') openRules();
+      if (a && a.dataset.a === 'tutorial') startTutorial();
+      if (a && a.dataset.a === 'me') Profile.openPanel();
       if (a && a.dataset.a === 'reset') confirmBox('Clear your setups, record, saved game and settings?', 'Reset', () => { try { localStorage.removeItem(KEY); } catch (err) { /* ignore */ } store = load(); local = null; resetBoard(); render(); });
     };
     v.onchange = e => {
@@ -1416,6 +1549,7 @@
   }
   function render() {
     closePop();
+    if (window.COACH) { if (tab !== 'play') COACH.closeOffer(); if (tour) setTimeout(() => COACH.update(), 0); }
     try { renderTab(); }
     catch (err) {
       // a damaged save must never blank the page: drop only the part this tab was showing, then draw again
@@ -1431,11 +1565,37 @@
 
   // start
   resumeLocal();
+  // My stats (shared js/profile.js: everything stays on this device)
+  if (window.Profile && window.StrProfile) {
+    try {
+      Profile.init({
+        game: 'stratego', levels: StrProfile.LEVELS, achievements: StrProfile.achievements(),
+        modes: { help: { name: 'Computer, with help' }, online: { hide: true } },
+        daily: { title: 'Daily game', onPlay: () => startDaily() },
+        onChange: what => { if ((what === 'me' || what === 'import') && (tab === 'settings' || !snapNow())) render(); },
+      });
+    } catch (e) { window.Profile = undefined; }
+  }
+  // the guided first game: its steps follow the game; it steps aside on other tabs and under boxes
+  if (window.COACH && window.StrTutorial) {
+    const tut = () => !!(local && local.tutorial && !net.room);
+    tour = COACH.tour({
+      id: 'stratego-first',
+      steps: StrTutorial.steps({ snap: () => (tut() ? snapNow() : null), ui: () => ui }),
+      pauseIf: () => tab !== 'play' || !tut() || !!document.querySelector('.confirm-back') || !!(window.Profile && Profile.isOpen()),
+    });
+    if (tut() && local.g.phase !== 'over') tour.resume(); // carry on after a reload
+  }
+  // a new version reloads itself only at a quiet moment: no room, no box open, not typing, no game mid-play on screen
+  if (window.PWA) window.PWA.safeToReload = () => !net.room && !store.inRoom && !document.querySelector('.confirm-back') && !(window.COACH && COACH.rulesOpen()) &&
+    !(window.Profile && Profile.isOpen()) && !su.worker && !st.running &&
+    !(document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) &&
+    (!local || local.g.phase === 'over' || tab === 'settings' || tab === 'study');
   const startTab = (location.hash || '').slice(1);
   if (['setup', 'study', 'settings'].includes(startTab)) { tab = startTab; document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab)); document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + tab)); }
   try { history.replaceState({ tab }, '', '#' + tab); } catch (e) { /* ignore */ }
   render();
   scheduleComputer();
   if (store.inRoom) loadOnline().then(() => net.room.resume()).then(ok => { if (!ok) { store.inRoom = false; save(); } render(); }).catch(() => { store.inRoom = false; save(); });
-  window.__strat = { snap: snapNow, store: () => store, ui };
+  window.__strat = { snap: snapNow, store: () => store, ui, act, legal: () => legalFor(snapNow()), undo, startDaily, startTutorial, get tour() { return tour; } };
 })();

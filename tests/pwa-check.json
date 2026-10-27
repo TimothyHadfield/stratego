@@ -1,0 +1,10 @@
+{
+  "repo": "stratego",
+  "ready": "!!(window.__strat && document.querySelector('#v-play .setup, #v-play #game'))",
+  "play": [
+    "(async () => { const w = ms => new Promise(r => setTimeout(r, ms)); const S = window.__strat; if (!S.snap()) document.querySelector('#v-play [data-a=start]').click(); await w(300); let s = S.snap(); if (s.pub.phase === 'setup') { document.querySelector('#v-play [data-a=ready]').click(); } for (let i = 0; i < 100 && !(S.snap().pub.phase === 'play' && S.snap().myTurn); i++) await w(100); window.__plyBefore = S.snap().pub.ply; const m = S.legal()[0]; S.act({ type: 'move', from: m[0], to: m[1] }); })()"
+  ],
+  "played": "(() => { const s = window.__strat.snap(); return !!s && s.pub.ply >= window.__plyBefore + 2 && s.myTurn; })()",
+  "safe": "document.querySelector('nav.tabs [data-tab=settings]').click()",
+  "debug": "JSON.stringify((() => { const s = window.__strat.snap(); return s ? { phase: s.pub.phase, ply: s.pub.ply, before: window.__plyBefore, myTurn: s.myTurn } : null; })())"
+}

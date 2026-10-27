@@ -8,6 +8,7 @@ const os = require('os');
 const E = require('../js/engine.js');
 const Bots = require('../js/bots.js');
 const Odds = require('../js/odds.js');
+if (process.env.TUNE) Object.assign(Bots.T, JSON.parse(process.env.TUNE)); // e.g. TUNE='{"K":12}' to try Hard settings
 
 function playOne(levels, variant, seed) {
   const rng = Odds.mulberry(seed);
@@ -47,7 +48,7 @@ if (!isMainThread) {
       jobs.push({ key: p, aSeat, levels, variant, seed: seed++ * 7777 });
     }
   }
-  const cores = Math.max(1, os.cpus().length - 1);
+  const cores = Math.max(1, +process.env.WORKERS || os.cpus().length - 1); // WORKERS=n caps threads (memory)
   const per = Array.from({ length: cores }, () => []);
   jobs.forEach((j, i) => per[i % cores].push(j));
   const tally = {};

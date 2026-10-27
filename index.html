@@ -8,7 +8,14 @@
 <meta name="theme-color" content="#0f1117">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Stratego Lab">
 <link rel="stylesheet" href="css/table.css?v=6">
+<link rel="stylesheet" href="css/profile.css?v=8">
+<link rel="stylesheet" href="css/coach.css?v=8">
 <style>
   :root {
     --bg: #0f1117; --bg-soft: #161923; --card: #1a1e2b; --line: #2a3042;
@@ -428,6 +435,13 @@
     .setup .panel .seg button { min-height: 40px; }
     .setup:not(:has(.hero)) { overflow-y: auto; }
   }
+  /* saved armies box (Setup tab) and the My stats / Daily / Rules row */
+  .armies { display: flex; flex-direction: column; gap: 6px; min-width: 240px; }
+  .arow { display: flex; align-items: center; gap: 6px; font-weight: 650; }
+  .arow.on .grow { color: var(--accent); }
+  .arow.on .grow::after { content: " · in use"; color: var(--muted); font-weight: 500; font-size: 12px; }
+  .row.extras .btn { padding: 0 8px; }
+  .row.extras .btn svg { flex: none; }
   /* setup tab grid: the same printed meadow */
   .sugrid { background: #4f7f3c; border-color: #b9994f; }
 </style>
@@ -458,6 +472,11 @@
 <script src="js/fx.js?v=6"></script>
 <script src="js/table.js?v=6"></script>
 <script src="js/sfx.js?v=6"></script>
-<script src="js/app.js?v=7"></script>
+<script src="js/profile.js?v=8"></script>
+<script src="js/profile-str.js?v=8"></script>
+<script src="js/coach.js?v=8"></script>
+<script src="js/tutorial.js?v=8"></script>
+<script src="js/pwa.js?v=8" data-version="8"></script>
+<script src="js/app.js?v=8"></script>
 </body>
 </html>
