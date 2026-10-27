@@ -71,7 +71,7 @@ function playGame(seed, variant) {
   ok('Daily: one army per day seed, full Classic army, vs Hard');
 }
 
-// 4. Hard's setups: Classic Flag walled in by Bombs on the back row; Barrage Flag in a back corner behind the Bomb
+// 4. Hard's setups: Classic Flag walled in by Bombs on the back row; Barrage Flag on the back row behind the Bomb
 {
   const rng = Odds.mulberry(99);
   for (let i = 0; i < 40; i++) {
@@ -80,10 +80,11 @@ function playGame(seed, variant) {
     const nb = [f - 10]; if (f % 10 > 0) nb.push(f - 1); if (f % 10 < 9) nb.push(f + 1);
     assert.ok(nb.every(k => s[k] === E.BOMB), 'walled in');
     const b = Bots.chooseSetup('barrage', 'hard', rng), bf = b.indexOf(E.FLAG);
-    assert.ok(bf === 30 || bf === 39, 'corner'); assert.equal(b[bf - 10], E.BOMB);
+    // Barrage: back row behind the Bomb (a corner most games; see tests/setup-variety.test.js)
+    assert.ok(bf >= 30, 'back row'); assert.equal(b[bf - 10], E.BOMB);
     assert.equal(b.filter(r => r >= 0).length, 8);
   }
-  ok('Hard setups: walled Classic Flag, cornered Barrage Flag (40 each)');
+  ok('Hard setups: walled Classic Flag, Barrage Flag behind the Bomb (40 each)');
 }
 
 console.log(pass + ' passed');

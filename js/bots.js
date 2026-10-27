@@ -82,23 +82,64 @@
     if (f % 10 < 9) nb.push(f + 1);
     return nb.every(k => own[k] === BOMB);
   }
+  /** Own view: the squares next to back-row square c that lie inside the setup (front, left, right). */
+  function backNb(c) { const nb = [c - 10]; if (c % 10 > 0) nb.push(c - 1); if (c % 10 < 9) nb.push(c + 1); return nb; }
+  /** Own view: wall a second back-row piece in with spare Bombs, so the real Flag has a twin (a decoy).
+      Bombs next to the Flag stay put; returns null when no decoy square fits. */
+  function addDecoyWall(own, rng) {
+    const f = own.indexOf(FLAG);
+    const keep = new Set([f].concat(backNb(f)));
+    const spare = [];
+    for (let k = 0; k < 40; k++) if (own[k] === BOMB && !keep.has(k)) spare.push(k);
+    const spots = [];
+    for (let c = 30; c < 40; c++) {
+      if (Math.abs((c % 10) - (f % 10)) < 3 || own[c] === BOMB) continue;
+      const need = backNb(c).filter(k => own[k] !== BOMB);
+      if (backNb(c).some(k => keep.has(k)) || need.length > spare.filter(k => !backNb(c).includes(k) && k !== c).length) continue;
+      spots.push(c);
+    }
+    if (!spots.length) return null;
+    const c = spots[(rng() * spots.length) | 0];
+    const out = own.slice();
+    const pool = shuffle(spare.filter(k => !backNb(c).includes(k) && k !== c), rng);
+    for (const k of backNb(c)) if (out[k] !== BOMB) { const b = pool.pop(); out[b] = out[k]; out[k] = BOMB; }
+    return out;
+  }
+  /** Hard's Classic setup: a real setup with the Flag walled in by Bombs on the back row, picked among
+      several shapes so a repeat player can't learn one spot: plain, or with a second (decoy) wall of
+      Bombs around another back-row piece, so cracking one wall finds the Flag only half the time. */
+  function hardClassicSetup(rng) {
+    let s = null;
+    for (let t = 0; t < 400 && !s; t++) { const r = realSetup(rng); if (r && flagWalled(r)) s = r; }
+    if (!s) return null;
+    const mix = T.flagMix || [1, 0];
+    const roll = rng() * (mix[0] + mix[1]);
+    if (roll < mix[0]) return s;
+    return addDecoyWall(s, rng) || s;
+  }
+  /** Hard's Barrage setup: the Flag on the back row behind the Bomb, in a corner (one open side) most
+      of the time, otherwise on another back-row square, so its spot isn't always the same. Off the
+      corner it stands alone (sideEmpty 2: nothing beside it; measured 70.7% vs Medium alone, while
+      pieces beside it gave the Flag away: 60-64%). */
+  function hardBarrageSetup(rng) {
+    const mix = T.barrage.flagMix || [1, 0];
+    const corner = rng() * (mix[0] + mix[1]) < mix[0];
+    for (let t = 0; t < 400; t++) {
+      const s = barrageSetup(rng, true), f = s.indexOf(FLAG);
+      if (s[f - 10] !== BOMB) continue;
+      if (corner ? (f === 30 || f === 39) && (T.barrage.cornerFlag < 2 || s[f === 30 ? 31 : 38] >= 0)
+        : f !== 30 && f !== 39 && (!T.barrage.sideEmpty || (s[f - 1] < 0) + (s[f + 1] < 0) >= T.barrage.sideEmpty)) return s;
+    }
+    return null;
+  }
   /** A setup in own view for this level. */
   function chooseSetup(variant, level, rng) {
     if (variant === 'barrage') {
-      if (level === 'hard' && T.barrage.cornerFlag) {
-        // Hard tucks its Flag into a back corner with the Bomb in front, so only one side is open
-        for (let t = 0; t < 400; t++) {
-          const s = barrageSetup(rng, true), f = s.indexOf(FLAG);
-          if ((f === 30 || f === 39) && s[f - 10] === BOMB && (T.barrage.cornerFlag < 2 || s[f === 30 ? 31 : 38] >= 0)) return s;
-        }
-      }
+      if (level === 'hard' && T.barrage.cornerFlag) { const s = hardBarrageSetup(rng); if (s) return s; }
       return barrageSetup(rng, level !== 'easy');
     }
     if (level === 'easy') return randomSetup('classic', rng);
-    if (level === 'hard' && T.safeSetup) {
-      // Hard keeps to real setups whose Flag sits on the back row walled in by Bombs
-      for (let t = 0; t < 400; t++) { const s = realSetup(rng); if (s && flagWalled(s)) return s; }
-    }
+    if (level === 'hard' && T.safeSetup) { const s = hardClassicSetup(rng); if (s) return s; }
     return realSetup(rng) || randomSetup('classic', rng);
   }
 
@@ -262,8 +303,10 @@
   }
 
   // Hard's search settings (node tools may override them to measure)
+  // flagMix: Hard's setup shapes, as weights [plain walled Flag, + decoy wall] (Classic) and
+  // [back corner, other back-row square] (Barrage)
   const T = { K: 6, lookW: 0.7, baseW: 0.6, replyW: 0.85, blind: 0, ply3: 0, defW: 4, offW: 1.5, safeSetup: 1, guard: 3, gR: 4, still: 0,
-    barrage: { baseW: 0.2, defW: 10, still: 8, cornerFlag: 1 } };
+    flagMix: [0.5, 0.5], barrage: { baseW: 0.2, defW: 10, still: 8, cornerFlag: 1, flagMix: [0.6, 0.4], sideEmpty: 2 } };
 
   // ------------------------------------------------------------------ the race for the Flag
   const RACE = [1.6, 1, 0.55, 0.3, 0.16, 0.08, 0.03];

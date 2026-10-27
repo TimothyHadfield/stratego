@@ -394,7 +394,7 @@
   let onlineP = null;
   /** Load the online module once (two quick taps must not make two connections). */
   function loadOnline() {
-    if (!onlineP) onlineP = import(new URL('js/online.js?v=6', location.href).href).then(mod => {
+    if (!onlineP) onlineP = import(new URL('js/online.js?v=a3d0418b', location.href).href).then(mod => {
       net.mod = mod;
       net.room = mod.createOnline({ game: StrOnlineGame.game, gameId: 'stratego', botDelayMs: 700 });
       net.room.on('change', snap => {
@@ -1247,7 +1247,7 @@
   function runTest(variant) {
     const own = mySetup(variant).slice();
     let w;
-    try { w = new Worker('js/worker.js?v=8'); } catch (e) { toast('Testing needs a newer browser.'); return; }
+    try { w = new Worker('js/worker.js?v=9'); } catch (e) { toast('Testing needs a newer browser.'); return; }
     su.worker = w;
     su.test = { variant, key: own.join(''), wins: 0, losses: 0, draws: 0, done: 0, n: 24 };
     w.onmessage = ev => {

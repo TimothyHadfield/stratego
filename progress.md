@@ -1,7 +1,7 @@
 # Stratego Lab — progress
 
 ## START HERE
-Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-27 (improvement pass: Hard ≥70% vs Medium, Undo, saved armies, guided game + rules, My stats/Daily, installable app, big fight moments).
+Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-27 (follow-up: Hard's Flag spot varies, online.js cache stamp; before that, improvement pass: Hard ≥70% vs Medium, Undo, saved armies, guided game + rules, My stats/Daily, installable app, big fight moments).
 
 ## Goal right now
 Tim's words (2026-10-20): "add risk, clue, battleship, connect four, stratego, clue, checkers, pandemic, splendor, king of tokyo, 7 wonders, and evolution to the list of games." This is the Stratego one: exact rules, odds for hidden pieces, setup analyzer, measured computers, study mode, online seats.
@@ -59,7 +59,7 @@ Regression test: `node tests/visibility.test.mjs` (10 checks, WebKit + Chrome, o
 ## Measured strength (2026-10-27)
 Classic, 1,000 games each: Hard beats Medium 73.1% (±2.7; was 60.2), Hard beats Easy 98.1% (was 96.4), Medium beats Easy 89.3%, Easy beats random 85.4% (2026-10-20, unchanged code).
 Barrage, 500 each: Hard–Medium 73.7% (±3.9; was 53.2), Hard–Easy 95.5% (was 88.0), Medium–Easy 85.7%, Easy–random 68.2%.
-What moved Hard (300-game Classic runs, ±5.5): Flag walled by Bombs on the back row 60.7→69; + Flag-race terms (defW 4, offW 1.5) 75; + guard 3 76. Barrage: decoys (don't move unmoved pieces, still 8) + baseW 0.2 + defW 10 → 67; Flag in a back corner behind the Bomb → 74. Tried and no help: more worlds (K 16), 3-ply follow-up, "they can't see my rank" discount, look-ahead weight changes. Knobs: `Bots.T` (Classic) and `Bots.T.barrage`; `TUNE='{"…"}' node tools/measure.js N variant hard-medium` overrides them, `WORKERS=n` caps threads.
+What moved Hard (300-game Classic runs, ±5.5): Flag walled by Bombs on the back row 60.7→69; + Flag-race terms (defW 4, offW 1.5) 75; + guard 3 76. Barrage: decoys (don't move unmoved pieces, still 8) + baseW 0.2 + defW 10 → 67; Flag in a back corner behind the Bomb → 74. Tried and no help: more worlds (K 16), 3-ply follow-up, "they can't see my rank" discount, look-ahead weight changes. Flag variety (2026-10-27, so a repeat player can't learn one spot): Classic Hard adds a second (decoy) Bomb wall round another back-row piece in half its games (`T.flagMix [0.5,0.5]`; 60% of setups now have two walls); Barrage Hard puts the Flag in a corner 60% and otherwise on another back-row square with nothing beside it (`T.barrage.flagMix [0.6,0.4]`, `sideEmpty 2`). Before → after, same seeds: Classic 1,000 games 73.1% → 73.6% (±2.7); Barrage 1,000 games 74.1% (2,000) → 73.6% (±2.7). Off-corner alone: 70.7%; with pieces beside the Flag 60–64% (rejected). Test: `node tests/setup-variety.test.js` (fails on the old bots: decoy 14%, corner 100%). Knobs: `Bots.T` (Classic) and `Bots.T.barrage`; `TUNE='{"…"}' node tools/measure.js N variant hard-medium` overrides them, `WORKERS=n` caps threads.
 
 ## Standing instructions (Tim's words)
 - "add risk, clue, battleship, connect four, stratego, ... to the list of games." (2026-10-20)
@@ -79,7 +79,7 @@ What moved Hard (300-game Classic runs, ±5.5): Flag walled by Bombs on the back
 - Finished games are told apart by `gid` (made in `E.newGame`, shown in `publicView`); never key on layouts or move count again (back-to-back resigns collided).
 - `render()` catches a failed draw and drops only the saved part that tab was showing (local game, last game, or one setup). Keep new tabs inside it.
 - Game buttons ignore a tap on a *different* button within 500 ms (Ready turns into Resign under the finger). Test scripts must wait >500 ms between them.
-- Bump every changed file's `?v=` on each push. index.html: engine/data/odds/online-game/fx/table/sfx v=6, art v=7, bots/strength-data/profile/coach/tutorial/pwa/app v=8 (pwa.js `data-version="8"` is the build number); worker.js imports bots v=8 and the Worker URL is v=8; online import v=6.
+- Bump every changed file's `?v=` on each push. index.html: engine/data/odds/online-game/fx/table/sfx v=6, art v=7, profile/coach/tutorial/pwa v=8, bots/strength-data/app v=9 (pwa.js `data-version="9"` is the build number); worker.js imports bots v=9 and the Worker URL is v=9; online import `?v=a3d0418b` (the `_online` content stamp, see below).
 - Kits copied byte-for-byte (never edit here): `js/profile.js`+`css/profile.css` (_profile 1.1.0), `js/coach.js`+`css/coach.css` (_coach), `js/pwa.js`, `sw.js`, `tools/make-icons.mjs`, `tools/pwa-check.mjs` (_pwa 1.2.0). `.gitattributes` marks them `-text`.
 - Stats rules: Hint or Undo sets `local.helped` → "with help", unrated. The Daily has no Undo. Leaving a game in play (New game, Daily, Guided game, Settings Reset) resigns it = one loss; a Daily left at any phase is a loss; the guided game never counts and leaves silently. The computer waits while that question box is open.
 - The coach offer ("New to Stratego?") covers the bottom of the new-game screen and the tab bar on a first visit. Test scripts: set localStorage `coach-offer:stratego-first` = `true` first.
@@ -123,7 +123,7 @@ Opponent sounds play at 0.85 volume. Fast = 0.55× delays; Animations off = soun
 - Default rules = Jumbo 2022 / ISF: Red first, Scout may move and strike, two-squares limit 3, chase rule on.
 - Revealed ranks stay visible in the app (tournament players must remember) — app choice.
 - Odds model default "Real players" (archive heat map + small floor); Barrage always flat.
-- Hard = 6 sampled worlds × 2-ply look-ahead blended with 1-ply, plus the race for both Flags, a Flag guard, Hard-only setups (Classic: Flag walled by Bombs on the back row; Barrage: Flag in a back corner behind the Bomb) and, in Barrage, keeping unmoved pieces as decoys. Easy and Medium are unchanged.
+- Hard = 6 sampled worlds × 2-ply look-ahead blended with 1-ply, plus the race for both Flags, a Flag guard, Hard-only setups (Classic: Flag walled by Bombs on the back row, half the time with a decoy wall; Barrage: Flag behind the Bomb, in a back corner 60%) and, in Barrage, keeping unmoved pieces as decoys. Easy and Medium are unchanged.
 - Study keeps only the last finished game.
 
 ## NOT verified
@@ -134,7 +134,7 @@ Opponent sounds play at 0.85 volume. Fast = 0.55× delays; Animations off = soun
 - The Study board is ~263 px wide on a phone (was 240); the move list shows 2 rows. A full-width board would leave no list.
 - Design-pass choices Tim didn't make: Resign is now a quiet ghost button; the laptop side panel shows a dashed "Tap a piece" slot when nothing is tapped; laptop new-game form is centred vertically.
 - Fight popup motion and the turn glow checked only in WebKit headless screenshots, not on a real iPhone.
-- Hard's Flag spots are predictable to a human who plays it many times (always back row walled by Bombs in Classic; always a back corner in Barrage). Measured only against Medium, not people.
+- Hard's Flag spots (varied 2026-10-27, see Measured strength): still always on the back row behind Bombs; whether a human learns the decoy/off-corner shapes is untested (measured only against Medium).
 - Improvement-pass choices Tim didn't make: wording "Took back your last move", "Saved" button and pop, achievement names (First win, Field officer, Field marshal, Eight against eight, Silent knife, Sapper, Untouchable, Lightning raid, Hat trick, Daily soldier), big-fight headlines ("The Spy takes the Marshal!", "A Marshal falls!", "Bomb cleared!", "Boom!"), the Daily = Classic vs Hard with rulebook rules, the My stats / Daily game / Rules row on the new-game screen (hint line hidden on iPhone SE height), app name "Stratego Lab" on the home screen. The tutorial and rules text are our own words.
 - Not built: campaign (needs Tim's call on its shape) and an end-of-game replay beyond what Study already does (Study replays the last game move by move). Ranked ladder skipped (online with strangers).
 - Big fight moments seen only in WebKit headless screenshots (393 px and 1440 px), with and without Animations; the shake and ring motion not watched live.
