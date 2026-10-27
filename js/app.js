@@ -112,13 +112,13 @@
     if (q && !q.closest('.fx-set')) { e.stopPropagation(); pop(q, HELP[q.dataset.help] || ''); return; }
     if (!e.target.closest('.pop')) closePop();
   }, true);
-  function confirmBox(text, yes, onYes) {
+  function confirmBox(text, yes, onYes, onNo) {
     const back = document.createElement('div');
     back.className = 'confirm-back';
     back.innerHTML = '<div class="panel"><div>' + esc(text) + '</div><div class="row"><button class="btn grow" data-a="no">Cancel</button><button class="btn warm grow" data-a="yes">' + esc(yes) + '</button></div></div>';
     back.addEventListener('click', e => {
       const a = e.target.closest('[data-a]');
-      if (e.target === back || (a && a.dataset.a === 'no')) back.remove();
+      if (e.target === back || (a && a.dataset.a === 'no')) { back.remove(); if (onNo) onNo(); }
       else if (a && a.dataset.a === 'yes') { back.remove(); onYes(); }
     });
     document.body.appendChild(back);
@@ -166,7 +166,7 @@
   function setTab(t, noPush) {
     if (t === tab) return;
     // a question box belongs to the screen it was asked on (Back must not leave "Resign?" over another tab)
-    document.querySelectorAll('.confirm-back').forEach(b => b.remove());
+    if (document.querySelector('.confirm-back')) { document.querySelectorAll('.confirm-back').forEach(b => b.remove()); scheduleComputer(); } // a closed Resign box lets the computer play on
     if (!noPush) { tabHistory.push(tab); try { history.pushState({ tab: t }, '', '#' + t); } catch (e) { /* ignore */ } }
     tab = t;
     document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
@@ -247,6 +247,7 @@
   }
   /** Bring back the saved game; a save that doesn't hold a whole game is dropped (and only that). */
   function resumeLocal() {
+    undoStack.length = 0;
     if (!store.local) return;
     try {
       const g = store.local.state, me = store.local.me;
@@ -344,14 +345,17 @@
       point is a loss too, so it can't be retried. Then `then()`. Asks first when there is something to lose. */
   function leaveLocal(then) {
     if (!local || local.g.phase === 'over') { then(); return; }
-    const playing = local.g.phase === 'play';
-    if (!playing && !local.daily) { local = null; store.local = null; save(); resetBoard(); then(); return; }
-    confirmBox(local.daily ? 'Leave today\'s Daily game? It counts as a loss.' : 'Resign your game in progress? It counts as a loss.', playing ? 'Resign' : 'Leave', () => {
-      if (playing) { E.apply(local.g, local.me, { type: 'resign' }); finishGame(local.g.result, E.publicView(local.g), local.me, 'computer', local.level); }
-      else if (window.Profile) { try { Profile.recordResult({ mode: local.helped ? 'help' : 'computer', level: local.helped ? null : local.level, won: false, daily: true, date: local.daily }); } catch (e) { /* ignore */ } }
-      clearTimeout(botTimer); local = null; store.local = null; undoStack.length = 0; save(); resetBoard();
+    const clear = () => { clearTimeout(botTimer); local = null; store.local = null; undoStack.length = 0; save(); resetBoard(); };
+    if (local.tutorial || (local.g.phase !== 'play' && !local.daily)) { clear(); then(); return; } // a guided game never counts
+    clearTimeout(botTimer); // the computer waits while the box is open
+    const today = window.Profile && local.daily === Profile.daily.date();
+    confirmBox(local.daily ? 'Leave ' + (today ? 'today\'s' : 'this') + ' Daily game? It counts as a loss.' : 'Resign your game in progress? It counts as a loss.', local.g.phase === 'play' ? 'Resign' : 'Leave', () => {
+      syncFromStorage(); // another tab may have moved the game on or ended it meanwhile
+      if (local && local.g.phase === 'play') { E.apply(local.g, local.me, { type: 'resign' }); finishGame(local.g.result, E.publicView(local.g), local.me, 'computer', local.level); }
+      else if (local && local.daily && local.g.phase !== 'over' && window.Profile) { try { Profile.recordResult({ mode: local.helped ? 'help' : 'computer', level: local.helped ? null : local.level, won: false, daily: true, date: local.daily }); } catch (e) { /* ignore */ } }
+      clear();
       then();
-    });
+    }, () => scheduleComputer());
   }
 
   // ------------------------------------------------------------------ My stats, Daily game, rules, guided first game
@@ -1538,7 +1542,7 @@
       if (a && a.dataset.a === 'rules') openRules();
       if (a && a.dataset.a === 'tutorial') startTutorial();
       if (a && a.dataset.a === 'me') Profile.openPanel();
-      if (a && a.dataset.a === 'reset') confirmBox('Clear your setups, record, saved game and settings?', 'Reset', () => { try { localStorage.removeItem(KEY); } catch (err) { /* ignore */ } store = load(); local = null; resetBoard(); render(); });
+      if (a && a.dataset.a === 'reset') leaveLocal(() => confirmBox('Clear your setups, record, saved game and settings?', 'Reset', () => { try { localStorage.removeItem(KEY); } catch (err) { /* ignore */ } store = load(); local = null; undoStack.length = 0; resetBoard(); render(); }));
     };
     v.onchange = e => {
       const i = e.target.closest('[data-sw]');
