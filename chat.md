@@ -1,5 +1,11 @@
 # Stratego Lab — session log
 
+## 2026-10-27 — improvement pass (builder under the games manager)
+- **Asked:** manager's per-game improvement brief: Hard must beat Medium ≥70% (was 53–60%), stronger computer, Undo, saved setups, guided game + rules, My stats/achievements/Daily, installable app, richer key moments, no empty bands. `js/online.js` untouched.
+- **Built:** `js/bots.js` (tuning object `T`, Flag race + guard, Hard-only setups, Barrage decoys and own weights), `js/app.js` (Undo, saved armies, Daily, tutorial, rules, stats recording, leave = loss, big fight popup), new `js/profile-str.js`, `js/tutorial.js`, kits copied (_profile 1.1.0, _coach, _pwa 1.2.0), `manifest.webmanifest`, `icons/`, `tests/profile-str.test.js`, `tests/pwa-check.json`.
+- **Verified:** `node tools/measure.js 1000 classic` Hard–Medium 73.1% ±2.7, `500 barrage` 73.7% ±3.9 (ladder Hard>Medium>Easy>random holds); engine 12, odds 5, sfx 7, profile-str 4 (setup test fails with the new setups switched off), online 5, edge 12, visibility 10; pwa-check 18/18 WebKit; WebKit scripts: computer waits while the leave box is open (ply 1→1, then 2 after Cancel), leaving records exactly one loss, Undo returns ply to 0 and marks the game helped; screenshots 393, 320×568 and 1440 of new-game, saved armies, big fight. One read-only review: 4 findings, all fixed.
+- **Open:** campaign not built (Tim's call); see progress.md NOT verified.
+
 ## 2026-10-21 → 10-27 — visibility pass (builder under the games manager; paused, resumed)
 - **Asked:** Tim: "for a lot of the games the cards or board layout is too small to easily see what's going on ... Fix this so the view of what's happening and where everything is is very clear."
 - **Built:** `js/art.js` (rank printed big on piece faces), `js/app.js` (odds/hint into the phone button row, tap-a-margin removed-pieces popup, Study min tweak), `index.html` (fixed status height, laptop grid, two-row army, badge size, Setup sideways/320 fixes); `?v=7`. See progress.md "Visibility pass".

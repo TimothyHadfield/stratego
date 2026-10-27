@@ -1,7 +1,7 @@
 # Stratego Lab — progress
 
 ## START HERE
-Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-27 (visibility pass: bigger rank numbers and board, `tests/visibility.test.mjs`).
+Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-27 (improvement pass: Hard ≥70% vs Medium, Undo, saved armies, guided game + rules, My stats/Daily, installable app, big fight moments).
 
 ## Goal right now
 Tim's words (2026-10-20): "add risk, clue, battleship, connect four, stratego, clue, checkers, pandemic, splendor, king of tokyo, 7 wonders, and evolution to the list of games." This is the Stratego one: exact rules, odds for hidden pieces, setup analyzer, measured computers, study mode, online seats.
@@ -21,6 +21,8 @@ Tim's words (2026-10-20): "add risk, clue, battleship, connect four, stratego, c
 | Sound & effects (2026-10-20) | Done: shared `js/fx.js` 1.0.3 (copy, never edit) + game-local `js/sfx.js`; "Sound & effects" panel in Settings; `tests/sfx.test.js` 7 tests |
 | Real-table look (2026-10-20, c7bd335) | Done: Play tab on a wood table (shared kit `css/table.css` + `js/table.js`, byte copies of `_table`); folding board with printed end margins where each side's removed pieces lie in rank stacks (theirs far, yours near), gold rule, centre fold, meadow print, irregular ponds; pieces are standing slabs (top edge, face toward owner, shadow; red printed gold, blue silver; enemy = plain back with emblem); fight turns the enemy piece round in 3-D; laptop board tilted back 11° (perspective); new phone-landscape layout (board left, panels right) for Play and Setup |
 | Visual design pass (2026-10-20) | Done: bevelled pieces, board frame glows on your turn, readable odds badges (scale with the board), tapped enemy piece ringed, odds bars scaled to the top value with % labels, fight popup knocks the loser over, lakes without grid lines, laptop duplicate army panel removed, 40px tap targets, Study phone board 240→263 px |
+
+| Improvement pass (2026-10-27) | Done: Hard re-tuned (see Measured strength); Undo vs the computer (30 steps, not in the Daily; using it or Hint makes the game "with help", unrated); Setup "Saved" armies (6 per variant); guided first game (`js/tutorial.js` + shared `_coach`) and a Rules sheet; My stats / 10 achievements / Daily game (shared `_profile` 1.1.0 + `js/profile-str.js`); installable app (`_pwa` 1.2.0, `manifest.webmanifest`, `icons/`); key fights (Spy takes Marshal, a Marshal falls, Bomb cleared / Boom) get a bigger popup with a headline, ring and board shake; `tests/profile-str.test.js` 4 tests; `tests/pwa-check.json` 18/18 |
 
 ## Edge pass (2026-10-20)
 61 weird scenarios tested for real (rules in node; taps, devices and screens in headless WebKit + Chrome; online rooms on real Firebase): 41 passed as found, 16 failed and are fixed, 1 N/A (no spectators), 3 NOT verified. Regression test: `node tests/edge.test.mjs` (12 checks, WebKit, own server; `BASE=<url>` checks the live site).
@@ -54,9 +56,10 @@ Regression test: `node tests/visibility.test.mjs` (10 checks, WebKit + Chrome, o
 | Laptop | board takes the full left height; status line heads the side column |
 | Setup tab | "Test it" no longer cut off sideways; "Where players put" chips all fit at 320 |
 
-## Measured strength (2026-10-20)
-Classic, 1,000 games each: Hard beats Medium 60.2% (±3.0), Hard beats Easy 96.4%, Medium beats Easy 89.3%, Easy beats random 85.4%.
-Barrage, 500 each (re-measured after the Flag-lane setup fix): Hard–Medium 53.2% (±4.4, not clearly above 50), Hard–Easy 88.0%, Medium–Easy 85.7%, Easy–random 68.2%.
+## Measured strength (2026-10-27)
+Classic, 1,000 games each: Hard beats Medium 73.1% (±2.7; was 60.2), Hard beats Easy 98.1% (was 96.4), Medium beats Easy 89.3%, Easy beats random 85.4% (2026-10-20, unchanged code).
+Barrage, 500 each: Hard–Medium 73.7% (±3.9; was 53.2), Hard–Easy 95.5% (was 88.0), Medium–Easy 85.7%, Easy–random 68.2%.
+What moved Hard (300-game Classic runs, ±5.5): Flag walled by Bombs on the back row 60.7→69; + Flag-race terms (defW 4, offW 1.5) 75; + guard 3 76. Barrage: decoys (don't move unmoved pieces, still 8) + baseW 0.2 + defW 10 → 67; Flag in a back corner behind the Bomb → 74. Tried and no help: more worlds (K 16), 3-ply follow-up, "they can't see my rank" discount, look-ahead weight changes. Knobs: `Bots.T` (Classic) and `Bots.T.barrage`; `TUNE='{"…"}' node tools/measure.js N variant hard-medium` overrides them, `WORKERS=n` caps threads.
 
 ## Standing instructions (Tim's words)
 - "add risk, clue, battleship, connect four, stratego, ... to the list of games." (2026-10-20)
@@ -76,7 +79,12 @@ Barrage, 500 each (re-measured after the Flag-lane setup fix): Hard–Medium 53.
 - Finished games are told apart by `gid` (made in `E.newGame`, shown in `publicView`); never key on layouts or move count again (back-to-back resigns collided).
 - `render()` catches a failed draw and drops only the saved part that tab was showing (local game, last game, or one setup). Keep new tabs inside it.
 - Game buttons ignore a tap on a *different* button within 500 ms (Ready turns into Resign under the finger). Test scripts must wait >500 ms between them.
-- Bump every changed file's `?v=` on each push. index.html scripts now v=6; worker.js and the Worker URL v=5; online import v=6.
+- Bump every changed file's `?v=` on each push. index.html: engine/data/odds/online-game/fx/table/sfx v=6, art v=7, bots/strength-data/profile/coach/tutorial/pwa/app v=8 (pwa.js `data-version="8"` is the build number); worker.js imports bots v=8 and the Worker URL is v=8; online import v=6.
+- Kits copied byte-for-byte (never edit here): `js/profile.js`+`css/profile.css` (_profile 1.1.0), `js/coach.js`+`css/coach.css` (_coach), `js/pwa.js`, `sw.js`, `tools/make-icons.mjs`, `tools/pwa-check.mjs` (_pwa 1.2.0). `.gitattributes` marks them `-text`.
+- Stats rules: Hint or Undo sets `local.helped` → "with help", unrated. The Daily has no Undo. Leaving a game in play (New game, Daily, Guided game, Settings Reset) resigns it = one loss; a Daily left at any phase is a loss; the guided game never counts and leaves silently. The computer waits while that question box is open.
+- The coach offer ("New to Stratego?") covers the bottom of the new-game screen and the tab bar on a first visit. Test scripts: set localStorage `coach-offer:stratego-first` = `true` first.
+- Phone-view screenshots of the fight popup: WebKit screenshots take ~2 s when the CPU is busy, so the popup is gone. `window.__strat.fight(h)` + `clearTimeout(__strat.ui.fight)` holds it (scratchpad script `bigshot.mjs` did this).
+- `tools/measure.js` workers use ~1.3 GB each; a 1000-game Classic run takes ~25 min with 6 workers.
 - Phone sideways (`LANDSCAPE`, max-height 540): `#app` is a row with a 64 px tab rail on the left; `#game` is a grid and `.gstatus` is `display: contents`. Test sideways screens with the rail in mind (nothing sits under a bottom bar).
 - Two tabs: `syncFromStorage()` runs before every local move, on the `storage` event and before the computer moves; it reloads the game when storage holds a newer ply/phase of the same `gid`. It is skipped when saving failed (`saveOk`), so blocked storage still plays.
 - Online: `roomJob()` runs Create/Join one at a time (`net.busy`); `net.sentAt/sentPly` ignores board taps for up to 5 s after sending a move; `net.leaving` stops the "room was closed" toast on your own Leave.
@@ -115,7 +123,7 @@ Opponent sounds play at 0.85 volume. Fast = 0.55× delays; Animations off = soun
 - Default rules = Jumbo 2022 / ISF: Red first, Scout may move and strike, two-squares limit 3, chase rule on.
 - Revealed ranks stay visible in the app (tournament players must remember) — app choice.
 - Odds model default "Real players" (archive heat map + small floor); Barrage always flat.
-- Hard = 6 sampled worlds × 2-ply look-ahead blended with 1-ply.
+- Hard = 6 sampled worlds × 2-ply look-ahead blended with 1-ply, plus the race for both Flags, a Flag guard, Hard-only setups (Classic: Flag walled by Bombs on the back row; Barrage: Flag in a back corner behind the Bomb) and, in Barrage, keeping unmoved pieces as decoys. Easy and Medium are unchanged.
 - Study keeps only the last finished game.
 
 ## NOT verified
@@ -126,7 +134,10 @@ Opponent sounds play at 0.85 volume. Fast = 0.55× delays; Animations off = soun
 - The Study board is ~263 px wide on a phone (was 240); the move list shows 2 rows. A full-width board would leave no list.
 - Design-pass choices Tim didn't make: Resign is now a quiet ghost button; the laptop side panel shows a dashed "Tap a piece" slot when nothing is tapped; laptop new-game form is centred vertically.
 - Fight popup motion and the turn glow checked only in WebKit headless screenshots, not on a real iPhone.
-- In Barrage, Hard is not clearly stronger than Medium (53.2% ±4.4).
+- Hard's Flag spots are predictable to a human who plays it many times (always back row walled by Bombs in Classic; always a back corner in Barrage). Measured only against Medium, not people.
+- Improvement-pass choices Tim didn't make: wording "Took back your last move", "Saved" button and pop, achievement names (First win, Field officer, Field marshal, Eight against eight, Silent knife, Sapper, Untouchable, Lightning raid, Hat trick, Daily soldier), big-fight headlines ("The Spy takes the Marshal!", "A Marshal falls!", "Bomb cleared!", "Boom!"), the Daily = Classic vs Hard with rulebook rules, the My stats / Daily game / Rules row on the new-game screen (hint line hidden on iPhone SE height), app name "Stratego Lab" on the home screen. The tutorial and rules text are our own words.
+- Not built: campaign (needs Tim's call on its shape) and an end-of-game replay beyond what Study already does (Study replays the last game move by move). Ranked ladder skipped (online with strangers).
+- Big fight moments seen only in WebKit headless screenshots (393 px and 1440 px), with and without Animations; the shake and ring motion not watched live.
 - Sound & effects: nothing was heard (headless WebKit on Windows has no Web Audio); checked by spying on `FX.play` in node and in WebKit. How the custom `clash`/`defuse`/`deploy` sounds actually sound, and the iPhone silent switch, need Tim's ears. Online sounds checked only through the shared snapshot path in node, not in two live browsers.
 - Real-table look: laptop tilt checked only in Chrome headless (WebKit headless renders it flat; real Safari not seen). Phone board shrank 367→330 px at 393 px (the board margins hold the removed pieces); edge pass brought it back to 342, and 334 sideways. Removed-piece stacks are small on phone (~14 px). Choices Tim didn't make: dark wood table; removed pieces in the board's end margins (not on the table beside it); no seat name on the board; no tilt on phone (tap size); new-game/lobby screens stay plain dark; fight popup kept as a card.
 - Edge pass: iPhone notch in sideways (safe-area insets added, no device), page in the background 10 min, two fights within 1.25 s (timer now reset per fight), sound/effect switches flipped mid-game. A host who drops out takes ~75 s before the guest gets the room (shared `_online` STALE_MS; not changed). The "fails on old code" run for the Back/Resign and Study checks crashed node on the old build, so those two rely on the harness before-results (box stayed open; 6.5 s).
