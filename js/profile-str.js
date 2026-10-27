@@ -7,11 +7,11 @@
 })(typeof self !== 'undefined' ? self : this, function (E) {
   'use strict';
   // Elo of each level from the measured games between them (js/strength-data.js, Classic):
-  // Medium beats Easy ~89% (+360), Hard beats Medium ~72% (+165). Easy anchored at 1000.
+  // Medium beats Easy 89.3% (+369), Hard beats Medium 73.1% (+174), 1,000 games each (2026-10-27). Easy anchored at 1000.
   const LEVELS = [
     { id: 'easy', name: 'Easy', rating: 1000 },
-    { id: 'medium', name: 'Medium', rating: 1360 },
-    { id: 'hard', name: 'Hard', rating: 1525 },
+    { id: 'medium', name: 'Medium', rating: 1369 },
+    { id: 'hard', name: 'Hard', rating: 1543 },
   ];
   const RANK = { easy: 0, medium: 1, hard: 2 };
   const won = c => !!(c.last && c.last.won);

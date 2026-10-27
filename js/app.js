@@ -317,7 +317,7 @@
       if (!m) E.apply(local.g, bot, { type: 'resign' });
       else E.apply(local.g, bot, { type: 'move', from: m.from, to: m.to });
       afterLocalChange();
-    }, ui.fight ? 1300 : 650);
+    }, ui.fight ? (ui.fightBig ? 1750 : 1300) : 650);
   }
 
   function finishGame(result, pub, me, mode, level) {
@@ -646,9 +646,17 @@
     // the enemy piece is turned round to show its rank (a 3-D turn from its plain back), like at the table
     const fp = (side, r, c) => side === me ? '<div class="fp ' + c + '">' + Art.piece(side, r, store.settings.numbering) + '</div>'
       : '<div class="fp turn ' + c + '"><div class="fl"><div class="ff">' + Art.piece(side, r, store.settings.numbering) + '</div><div class="fb">' + Art.piece(side, null) + '</div></div></div>';
-    fx.innerHTML = '<div class="fight">' + fp(h.s, ar, attCls) + '<div class="vs"><div class="' + cls + '">' + word + '</div><div class="muted" style="font-size:11px;font-weight:600">' +
-      esc(rankName(ar)) + ' hit ' + esc(dr === null ? 'a hidden piece' : rankName(dr)) + '</div></div>' + fp(1 - h.s, dr, defCls) + '</div>';
-    ui.fight = setTimeout(() => { fx.innerHTML = ''; ui.fight = null; }, 1250);
+    // key moments get a bigger show: a Marshal falls, the Spy strikes, a Bomb goes off or is cleared
+    const big = (ar === E.SPY && dr === E.MARSHAL && out === 'att') ? 'The Spy takes the Marshal!'
+      : ((ar === E.MARSHAL && out !== 'att' && dr !== E.BOMB) || (dr === E.MARSHAL && out !== 'def')) ? 'A Marshal falls!'
+      : (dr === E.BOMB && out === 'att') ? 'Bomb cleared!'
+      : (dr === E.BOMB) ? 'Boom!' : '';
+    fx.innerHTML = '<div class="fight' + (big ? ' big' : '') + '">' + (big ? '<div class="bigline">' + esc(big) + '</div><i class="ring"></i><div class="frow">' : '') + fp(h.s, ar, attCls) + '<div class="vs"><div class="' + cls + '">' + word + '</div><div class="muted" style="font-size:11px;font-weight:600">' +
+      esc(rankName(ar)) + ' hit ' + esc(dr === null ? 'a hidden piece' : rankName(dr)) + '</div></div>' + fp(1 - h.s, dr, defCls) + (big ? '</div>' : '') + '</div>';
+    ui.fightBig = !!big;
+    // a Marshal falling shakes the board (js/sfx.js already shakes it for a Bomb and bursts stars for the Spy)
+    if (big && dr !== E.BOMB) { bw.classList.remove('shake'); void bw.offsetWidth; bw.classList.add('shake'); }
+    ui.fight = setTimeout(() => { fx.innerHTML = ''; ui.fight = null; bw.classList.remove('shake'); }, big ? 1700 : 1250);
   }
 
   // ------------------------------------------------------------------ clicks on the board
@@ -732,7 +740,7 @@
       '</div>' +
       (window.Profile ? '<div class="row extras"><button class="btn small grow pf-open" data-a="me">' + Profile.avatarSVG(Profile.avatar, 24) + 'My stats</button>' +
         '<button class="btn small grow" data-a="daily">Daily game</button>' + (window.COACH ? '<button class="btn small grow" data-a="rules">Rules</button>' : '') + '</div>' : '') +
-      '<div class="muted" style="font-size:12.5px;text-align:center">Your army comes from the <b>Setup</b> tab. Rules switches are in Settings.</div>' +
+      '<div class="muted ngnote" style="font-size:12.5px;text-align:center">Your army comes from the <b>Setup</b> tab. Rules switches are in Settings.</div>' +
       '</div>';
     offerTutorial();
     v.onclick = e => {
@@ -1235,7 +1243,7 @@
   function runTest(variant) {
     const own = mySetup(variant).slice();
     let w;
-    try { w = new Worker('js/worker.js?v=5'); } catch (e) { toast('Testing needs a newer browser.'); return; }
+    try { w = new Worker('js/worker.js?v=8'); } catch (e) { toast('Testing needs a newer browser.'); return; }
     su.worker = w;
     su.test = { variant, key: own.join(''), wins: 0, losses: 0, draws: 0, done: 0, n: 24 };
     w.onmessage = ev => {
@@ -1597,5 +1605,5 @@
   render();
   scheduleComputer();
   if (store.inRoom) loadOnline().then(() => net.room.resume()).then(ok => { if (!ok) { store.inRoom = false; save(); } render(); }).catch(() => { store.inRoom = false; save(); });
-  window.__strat = { snap: snapNow, store: () => store, ui, act, legal: () => legalFor(snapNow()), undo, startDaily, startTutorial, get tour() { return tour; } };
+  window.__strat = { snap: snapNow, store: () => store, ui, act, legal: () => legalFor(snapNow()), undo, startDaily, startTutorial, get tour() { return tour; }, fight: h => { const s = snapNow(); showFight(document.querySelector('#v-play .bwrap') || boardEl, s.mySeat !== undefined ? s.mySeat : 0, h, s.pub, {}); } };
 })();

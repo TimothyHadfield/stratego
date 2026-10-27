@@ -321,6 +321,20 @@
   .fx-fast .fight { animation-duration: .12s; }
   .fx-fast .fight .fp.lose { animation-duration: .25s; animation-delay: .19s; }
   .fx-fast .fight .fp.win { animation-duration: .22s; animation-delay: .17s; }
+  /* key moments (a Marshal falls, the Spy strikes, a Bomb): a bigger popup, a shock ring and a short board shake */
+  .fight.big { flex-direction: column; gap: 6px; padding: 12px 18px 14px; border-color: var(--accent-warm); box-shadow: 0 0 0 1px rgba(240,179,84,.35), 0 0 28px rgba(240,179,84,.35); animation: popbig .34s cubic-bezier(.2,1.5,.4,1) both; }
+  .fight.big .frow { display: flex; align-items: center; gap: 10px; }
+  .fight.big .fp { width: clamp(64px, 13cqw, 100px); height: clamp(64px, 13cqw, 100px); }
+  .fight.big .bigline { white-space: nowrap; text-align: center; font-weight: 850; font-size: clamp(16px, 4.6cqw, 22px); color: var(--accent-warm); letter-spacing: .01em; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+  .fight.big .ring { position: absolute; left: 50%; top: 55%; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; border: 3px solid rgba(240,179,84,.85); pointer-events: none; animation: ring .7s .3s ease-out both; }
+  @keyframes popbig { 0% { transform: translate(-50%, -50%) scale(.5); opacity: 0; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+  @keyframes ring { 0% { transform: scale(.3); opacity: 1; } 100% { transform: scale(6); opacity: 0; } }
+  .bwrap.shake { animation: shake .42s .32s ease-in-out; }
+  @keyframes shake { 0%, 100% { translate: 0 0; } 20% { translate: -5px 1px; } 40% { translate: 4px -2px; } 60% { translate: -3px 2px; } 80% { translate: 2px -1px; } }
+  .fx-still .bwrap.shake, .fx-still .fight.big .ring { animation: none !important; }
+  .fx-still .fight.big .ring { display: none; }
+  .fx-fast .bwrap.shake { animation-duration: .22s; animation-delay: .17s; }
+  .fx-fast .fight.big .ring { animation-duration: .38s; animation-delay: .17s; }
 
   /* ------------------------------------------------ the real table (css/table.css surface + the folding board) */
   #v-play:not(:has(#game)) { background: var(--bg); }
@@ -442,6 +456,8 @@
   .arow.on .grow::after { content: " · in use"; color: var(--muted); font-weight: 500; font-size: 12px; }
   .row.extras .btn { padding: 0 8px; }
   .row.extras .btn svg { flex: none; }
+  /* short phones (iPhone SE): the hint line under the new-game form gives way so nothing runs under the tab bar */
+  @media (max-height: 600px) and (orientation: portrait) { .ngnote { display: none; } }
   /* setup tab grid: the same printed meadow */
   .sugrid { background: #4f7f3c; border-color: #b9994f; }
 </style>
@@ -465,9 +481,9 @@
 <script src="js/engine.js?v=6"></script>
 <script src="js/data.js?v=6"></script>
 <script src="js/odds.js?v=6"></script>
-<script src="js/bots.js?v=6"></script>
+<script src="js/bots.js?v=8"></script>
 <script src="js/online-game.js?v=6"></script>
-<script src="js/strength-data.js?v=6"></script>
+<script src="js/strength-data.js?v=8"></script>
 <script src="js/art.js?v=7"></script>
 <script src="js/fx.js?v=6"></script>
 <script src="js/table.js?v=6"></script>

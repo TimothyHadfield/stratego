@@ -84,7 +84,16 @@
   }
   /** A setup in own view for this level. */
   function chooseSetup(variant, level, rng) {
-    if (variant === 'barrage') return barrageSetup(rng, level !== 'easy');
+    if (variant === 'barrage') {
+      if (level === 'hard' && T.barrage.cornerFlag) {
+        // Hard tucks its Flag into a back corner with the Bomb in front, so only one side is open
+        for (let t = 0; t < 400; t++) {
+          const s = barrageSetup(rng, true), f = s.indexOf(FLAG);
+          if ((f === 30 || f === 39) && s[f - 10] === BOMB && (T.barrage.cornerFlag < 2 || s[f === 30 ? 31 : 38] >= 0)) return s;
+        }
+      }
+      return barrageSetup(rng, level !== 'easy');
+    }
     if (level === 'easy') return randomSetup('classic', rng);
     if (level === 'hard' && T.safeSetup) {
       // Hard keeps to real setups whose Flag sits on the back row walled in by Bombs
@@ -253,7 +262,8 @@
   }
 
   // Hard's search settings (node tools may override them to measure)
-  const T = { K: 6, lookW: 0.7, baseW: 0.6, replyW: 0.85, blind: 0, ply3: 0, defW: 0, offW: 0, safeSetup: 0, guard: 0, gR: 4 };
+  const T = { K: 6, lookW: 0.7, baseW: 0.6, replyW: 0.85, blind: 0, ply3: 0, defW: 4, offW: 1.5, safeSetup: 1, guard: 3, gR: 4, still: 0,
+    barrage: { baseW: 0.2, defW: 10, still: 8, cornerFlag: 1 } };
 
   // ------------------------------------------------------------------ the race for the Flag
   const RACE = [1.6, 1, 0.55, 0.3, 0.16, 0.08, 0.03];
@@ -331,7 +341,9 @@
       return { from: legal[pick][0], to: legal[pick][1] };
     }
     // hard: two-move look-ahead in sampled worlds, blended with the one-move score
-    const K = T.K;
+    // Barrage plays differently (8 pieces, short games): its own weights
+    const P = pub.opts.variant === 'barrage' ? Object.assign({}, T, T.barrage) : T;
+    const K = P.K;
     const worlds = Odds.guesses(pub, seat, K, { prior: pub.opts.variant === 'barrage' ? 'flat' : 'real', rng, burn: 800, gap: 200 });
     const look = new Float64Array(legal.length);
     const val = ctx.val;
@@ -363,11 +375,11 @@
           if (dr === FLAG) { worst = -FLAG_VALUE * 4; break; }
           const out = E.resolve(ar, dr, ctx.g.opts);
           let delta = out === 'att' ? -val[dr] : out === 'def' ? val[ar] : val[ar] - val[dr];
-          if (T.blind && delta < 0 && !shown(ctx.g, b, f, t, me0(ctx.g, f))) delta *= T.blind;
+          if (P.blind && delta < 0 && !shown(ctx.g, b, f, t, me0(ctx.g, f))) delta *= P.blind;
           if (delta < worst) worst = delta;
         }
         let again = 0;
-        if (T.ply3 && w.own[t] === seat) {
+        if (P.ply3 && w.own[t] === seat) {
           // my follow-up: the best capture my moved piece could then make (a threat they must answer)
           genMoves(w, seat, strike, buf);
           for (const m of buf) {
@@ -379,18 +391,18 @@
           }
         }
         let plan = 0;
-        if (T.defW || T.offW) {
+        if (P.defW || P.offW) {
           // the race for the Flags: how close enemy pieces stand to my Flag, and mine to theirs (in this guess)
-          if (T.defW && myFlag >= 0) plan -= T.defW * flagRace(w, myFlag, seat, cm, cn);
-          if (T.offW) { const ef = findFlag(w, 1 - seat); if (ef >= 0) plan += T.offW * flagRace(w, ef, 1 - seat, cm, cn); }
+          if (P.defW && myFlag >= 0) plan -= P.defW * flagRace(w, myFlag, seat, cm, cn);
+          if (P.offW) { const ef = findFlag(w, 1 - seat); if (ef >= 0) plan += P.offW * flagRace(w, ef, 1 - seat, cm, cn); }
         }
-        look[i] += gain + T.replyW * worst + T.ply3 * again + plan;
+        look[i] += gain + P.replyW * worst + P.ply3 * again + plan;
         w.own[f] = sv[0]; w.rk[f] = sv[1]; w.own[t] = sv[2]; w.rk[t] = sv[3];
       });
     }
     // guard the Flag: enemy pieces near it pull my pieces that can beat them toward them
     const guard = new Float64Array(legal.length);
-    if (T.guard && myFlag >= 0) {
+    if (P.guard && myFlag >= 0) {
       const g = ctx.g, threats = [];
       for (let sq = 0; sq < 100; sq++) {
         const id = g.board[sq];
@@ -398,7 +410,7 @@
         const p = dist12(ctx, id);
         const mob = 1 - p[FLAG] - p[BOMB];
         const d = dist(sq, myFlag);
-        if (mob > 0.05 && d <= T.gR) threats.push([sq, p, mob * (1 + (p[MINER] || 0) * 2) / d]);
+        if (mob > 0.05 && d <= P.gR) threats.push([sq, p, mob * (1 + (p[MINER] || 0) * 2) / d]);
       }
       if (threats.length) legal.forEach(([f, t], i) => {
         const r = g.pieces[g.board[f]].r;
@@ -412,9 +424,16 @@
         guard[i] = s;
       });
     }
+    // keep decoys: every piece that has never moved could still be the Flag to the enemy
+    const still = P.still ? (() => {
+      let n = 0;
+      for (const p of ctx.g.pieces) if (p && p.o === seat && p.pos >= 0 && !p.mv) n++;
+      return P.still / Math.max(1, n - 1);
+    })() : 0;
     let best = -Infinity, pick = 0;
     legal.forEach((m, i) => {
-      const v = (worlds.length ? look[i] / worlds.length : 0) * T.lookW + base[i] * T.baseW + T.guard * guard[i] + rng() * 0.1;
+      const v = (worlds.length ? look[i] / worlds.length : 0) * P.lookW + base[i] * P.baseW + P.guard * guard[i] + rng() * 0.1 -
+        (still && !ctx.g.pieces[ctx.g.board[m[0]]].mv ? still : 0);
       if (v > best) { best = v; pick = i; }
     });
     return { from: legal[pick][0], to: legal[pick][1] };
