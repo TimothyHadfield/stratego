@@ -1,5 +1,11 @@
 # Stratego Lab — session log
 
+## 2026-10-21 → 10-27 — visibility pass (builder under the games manager; paused, resumed)
+- **Asked:** Tim: "for a lot of the games the cards or board layout is too small to easily see what's going on ... Fix this so the view of what's happening and where everything is is very clear."
+- **Built:** `js/art.js` (rank printed big on piece faces), `js/app.js` (odds/hint into the phone button row, tap-a-margin removed-pieces popup, Study min tweak), `index.html` (fixed status height, laptop grid, two-row army, badge size, Setup sideways/320 fixes); `?v=7`. See progress.md "Visibility pass".
+- **Verified:** visibility 10/10 (9 fail on main), engine 12, odds 5, sfx 7, edge 12, online 5. Audit shots at 393, 320, 659×393 (WebKit), 1280, 1440 (Chrome) in the manager scratchpad `vis/stratego/{before,after}`; one read-only reviewer pass, its real findings fixed (its "laptop board overlaps the panels" was a stale mid-resize shot: measured 18 px gap).
+- **Open:** 320 px odds badges touch each other on full rows; margins still small until tapped.
+
 ## 2026-10-20 — edge pass (builder under the games manager)
 - **Asked:** Tim: "Could you focus on making each game perfect especially in scenarios that the game doesn't expect or are a little weird." Brief: 40+ weird scenarios, test each for real, fix failures with a failing test first; make the phone board as big as it can be; confirm taps on the tilted laptop board.
 - **Built:** `js/app.js` + `index.html` fixes (see progress.md "Edge pass"); `tests/edge.test.mjs` (12 WebKit checks, own server); `?v=6`. Shared `js/online.js` / `js/fx.js` untouched.

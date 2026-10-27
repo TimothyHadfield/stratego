@@ -72,8 +72,11 @@
     } else {
       const lab = E.label(r, numbering);
       const small = r === E.FLAG || r === E.BOMB;
-      inner = '<g transform="translate(20 26) scale(.72) translate(-20 -23)">' + glyph(r, c.print) + '</g>' +
-        (small ? '' : '<text x="8.3" y="19.6" font-size="9.6" font-weight="850" fill="' + c.print + '" font-family="system-ui,-apple-system,Segoe UI,sans-serif">' + lab + '</text>');
+      // the rank is printed big across the top of the face (readable on a phone), its badge small below;
+      // Flag and Bomb have no number, so their picture fills the face
+      inner = small ? '<g transform="translate(20 25.5) scale(.72) translate(-20 -23)">' + glyph(r, c.print) + '</g>'
+        : '<text x="20" y="24.3" text-anchor="middle" font-size="17" font-weight="850" letter-spacing="-.4" fill="' + c.print + '" font-family="system-ui,-apple-system,Segoe UI,sans-serif">' + lab + '</text>' +
+          '<g transform="translate(20 30.6) scale(.42) translate(-20 -23)">' + glyph(r, c.print) + '</g>';
     }
     // no gradients or ids (hundreds of copies on a page stay safe): shadow on the board, the block's
     // dark sides, its top edge (lit from above), the face toward you, a shine line and a crease
@@ -96,8 +99,9 @@
     const small = known && (r === E.FLAG || r === E.BOMB);
     return '<svg viewBox="0 0 30 40" aria-hidden="true"><rect x="2.5" y="3" width="27" height="37" rx="4" fill="#000" opacity=".32"/>' +
       '<rect x="1" y="1" width="27" height="37" rx="4" fill="' + c.dark + '"/><rect x="2" y="2" width="25" height="34" rx="3.2" fill="' + c.face + '"/>' +
-      (known ? '<g transform="translate(14.5 26) scale(.6) translate(-20 -23)">' + glyph(r, c.print) + '</g>' +
-        (small ? '' : '<text x="14.5" y="16" text-anchor="middle" font-size="12" font-weight="850" fill="' + c.print + '" font-family="system-ui,-apple-system,Segoe UI,sans-serif">' + lab + '</text>')
+      (known ? (small ? '<g transform="translate(14.5 21) scale(.66) translate(-20 -23)">' + glyph(r, c.print) + '</g>'
+        : '<text x="14.5" y="19.5" text-anchor="middle" font-size="16" font-weight="850" letter-spacing="-.6" fill="' + c.print + '" font-family="system-ui,-apple-system,Segoe UI,sans-serif">' + lab + '</text>' +
+          '<g transform="translate(14.5 28.5) scale(.42) translate(-20 -23)">' + glyph(r, c.print) + '</g>')
         : '<path d="M14.5 11 L21 13.5 V19 C21 23 18.4 25.6 14.5 27 C10.6 25.6 8 23 8 19 V13.5 Z" fill="none" stroke="' + c.print + '" stroke-width="1.5" opacity=".85"/>') + '</svg>';
   }
 

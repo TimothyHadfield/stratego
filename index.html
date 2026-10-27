@@ -110,7 +110,7 @@
   .pc.focus { z-index: 2; }
   .pc.focus::before { content: ""; position: absolute; inset: 0; border-radius: 7px; box-shadow: 0 0 0 2.5px #ffe08a, 0 0 10px rgba(255,224,138,.7); animation: fade .2s; }
   .pc.gone { opacity: 0; transform: scale(.6); }
-  .pc .badge { position: absolute; right: 1px; bottom: 1px; font-size: clamp(9px, 2.05cqw, 14px); font-weight: 700; line-height: 1; padding: .22em .3em; border-radius: .35em; background: rgba(10,12,18,.84); color: #f0c77e; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pc .badge { position: absolute; right: 1px; bottom: 1px; font-size: clamp(10px, 3.45cqw, 16px); font-weight: 700; line-height: 1; padding: .22em .24em; border-radius: .35em; background: rgba(10,12,18,.84); color: #f0c77e; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .pc .badge b { color: #fff; font-weight: 850; margin-right: .22em; }
   .pc .badge.top { left: 1px; right: auto; top: 1px; bottom: auto; }
   .pc .seen { position: absolute; right: 2px; top: 2px; width: 7px; height: 7px; border-radius: 50%; background: #ffe08a; box-shadow: 0 0 0 1.5px rgba(0,0,0,.5); }
@@ -165,6 +165,9 @@
   @media (max-width: 899px) {
     #v-play { padding-top: 5px; padding-bottom: 5px; }
     #game { gap: 5px; }
+    /* upright phone: the status is one short line of fixed height (odds/hint sit in the button row), so the board never resizes on a tap */
+    .gstatus { min-height: 0; height: 26px; flex: none; }
+    .gacts .icon-btn { height: 44px; }
   }
   ul.log { list-style: none; margin: 0; padding: 0; font-size: 12.5px; display: flex; flex-direction: column; gap: 2px; }
   ul.log li { color: var(--muted); }
@@ -172,8 +175,14 @@
   ul.log li .n { color: #59607a; font-variant-numeric: tabular-nums; margin-right: 5px; }
   @media (min-width: 900px) {
     #game { display: grid; grid-template-columns: auto minmax(320px, 400px); grid-template-rows: auto minmax(0, 1fr); gap: 12px 18px; justify-content: center; }
-    .gstatus { grid-column: 1 / 3; }
-    .boardcol { grid-column: 1; grid-row: 2; align-items: flex-start; }
+    /* the board takes the full height on the left; the status line heads the side column */
+    .gstatus { grid-column: 2; grid-row: 1; height: 52px; }
+    .turnchip { flex-wrap: wrap; row-gap: 0; align-content: center; }
+    .turnchip .sub { flex-basis: 100%; padding-left: 18px; }
+    .boardcol { grid-column: 1; grid-row: 1 / 3; align-items: flex-start; }
+    /* their army in two rows, so each piece is big enough to read */
+    #army-side .ranks.army { grid-template-columns: repeat(6, minmax(0, 1fr)); row-gap: 8px; }
+    #army-side .rk .mini { max-width: 40px; }
     .side { display: flex; grid-column: 2; grid-row: 2; flex-direction: column; gap: 10px; min-height: 0; }
     .side .panel { padding: 12px 14px; }
     .side .logbox { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -225,7 +234,7 @@
   .chk.warn .mk { background: var(--accent-warm); }
   .chk.bad .mk { background: var(--bad); }
   .heatpick { display: flex; gap: 4px; overflow-x: auto; }
-  .heatpick button { flex: none; min-width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg-soft); cursor: pointer; font-weight: 700; font-size: 12.5px; padding: 0 6px; }
+  .heatpick button { flex: 1 0 32px; min-width: 32px; height: 40px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg-soft); cursor: pointer; font-weight: 700; font-size: 12.5px; padding: 0 6px; }
   .heatpick button[aria-pressed="true"] { border-color: var(--accent-warm); color: var(--accent-warm); }
   .big { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
   .sumrow { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; }
@@ -337,6 +346,14 @@
   .gs svg { width: 100%; height: 100%; display: block; }
   .gs b { position: absolute; left: calc(100% + 3px); bottom: -1px; z-index: 2; font-size: 10px; line-height: 1; font-weight: 800; color: #eadfbd; text-shadow: 0 1px 1px rgba(0, 0, 0, .8); font-variant-numeric: tabular-nums; }
   .gs:has(b) { margin-right: 11px; }
+  /* a tap on a margin shows its pieces full size */
+  .grave { cursor: pointer; }
+  .gbig { display: flex; flex-direction: column; gap: 6px; }
+  .gbrow { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: flex-end; min-height: 36px; }
+  .gb { display: inline-flex; align-items: flex-end; gap: 2px; }
+  .gb i { width: 27px; height: 36px; display: block; }
+  .gb i svg { width: 100%; height: 100%; display: block; }
+  .gb b { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
   @media (min-width: 900px) {
     .bframe { --fe: 54px; --fs: 14px; border-radius: 8px; margin-top: -56px; }
     .gs { height: calc(var(--fe) - 18px); }
@@ -345,6 +362,10 @@
     .grave .seat { font-size: 12px; }
     .gs b { font-size: 12px; }
     .gs:has(b) { margin-right: 14px; }
+    /* the tap-to-enlarge view is bigger than the margin's own pieces */
+    .gb i { width: 39px; height: 52px; }
+    .gb b { font-size: 15px; }
+    .gbrow { min-height: 52px; gap: 8px 10px; }
     /* the board lies on the table in front of you: its far end a little further away */
     .bframe { transform: perspective(1500px) rotateX(11deg); transform-origin: 50% 100%; }
   }
@@ -383,9 +404,13 @@
     #acts-phone { grid-column: 2 / 5; grid-row: 3; flex-wrap: wrap; }
     #game:has(.gstatus [data-a="odds"]) #acts-phone { grid-column: 4; }
     .info .ranks:has(+ .fightline) .pbar { height: 30px; }
+    .info .ranks.army { grid-template-columns: repeat(6, minmax(0, 1fr)); row-gap: 6px; }
+    .info .ranks.army .rk .mini { max-width: 34px; }
     .su { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); gap: 6px 12px; }
     .su .su-head, .su .su-grid, .su .su-tools { grid-column: 1; }
     .su .su-side { grid-column: 2; grid-row: 1 / 4; min-height: 0; overflow-y: auto; }
+    /* the narrow side column: "Test games" drops under the Flag guess instead of being squeezed off the edge */
+    .su .sumrow > .grow { flex: 1 0 auto; }
     /* study: the same idea, board left, controls and moves right */
     .study.has { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 6px 12px; }
     .study.has .st-board { grid-column: 1; grid-row: 1 / 3; align-items: flex-start; }
@@ -429,10 +454,10 @@
 <script src="js/bots.js?v=6"></script>
 <script src="js/online-game.js?v=6"></script>
 <script src="js/strength-data.js?v=6"></script>
-<script src="js/art.js?v=6"></script>
+<script src="js/art.js?v=7"></script>
 <script src="js/fx.js?v=6"></script>
 <script src="js/table.js?v=6"></script>
 <script src="js/sfx.js?v=6"></script>
-<script src="js/app.js?v=6"></script>
+<script src="js/app.js?v=7"></script>
 </body>
 </html>
