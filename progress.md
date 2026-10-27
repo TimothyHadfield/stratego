@@ -1,7 +1,7 @@
 # Stratego Lab — progress
 
 ## START HERE
-Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-20 (edge pass: odd taps/devices/screens, `tests/edge.test.mjs`).
+Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-27 (visibility pass: bigger rank numbers and board, `tests/visibility.test.mjs`).
 
 ## Goal right now
 Tim's words (2026-10-20): "add risk, clue, battleship, connect four, stratego, clue, checkers, pandemic, splendor, king of tokyo, 7 wonders, and evolution to the list of games." This is the Stratego one: exact rules, odds for hidden pieces, setup analyzer, measured computers, study mode, online seats.
@@ -41,6 +41,19 @@ Tim's words (2026-10-20): "add risk, clue, battleship, connect four, stratego, c
 | 200% browser zoom | Study cut off |
 Laptop tilt (11°): taps land on the right square in Chrome and WebKit at 1280 and 1920 (92 cells each) — no fix needed.
 
+## Visibility pass (2026-10-27)
+Regression test: `node tests/visibility.test.mjs` (10 checks, WebKit + Chrome, own server; 9 fail on the old build).
+| Fixed | Before → after (measured) |
+|---|---|
+| Rank number on pieces (now printed big across the top, emblem small below) | phone 7.4 → 13.5 px, 320 5.4 → 10.0, sideways 7.2 → 12.8, Setup tab 8.0 → 14.2, Study 5.5 → 10.9 |
+| Board size | phone 342 → 352 px, 320 259 → 269, Study phone 263 → 291, laptop 1280 602 → 657 on screen, 1440 701 → 757 |
+| Board jumped 342→340→338 on taps (status row shrank) | fixed height; odds/hint buttons moved into the button row on an upright phone |
+| Odds badges | 9 → 12 px, inside their square |
+| Removed-piece margins (14 px slabs) | tap a margin: both sides at 36 px (52 px on laptop) |
+| Their-army pieces | sideways 14 → 30 px, laptop 26 → 40 px (two rows of 6) |
+| Laptop | board takes the full left height; status line heads the side column |
+| Setup tab | "Test it" no longer cut off sideways; "Where players put" chips all fit at 320 |
+
 ## Measured strength (2026-10-20)
 Classic, 1,000 games each: Hard beats Medium 60.2% (±3.0), Hard beats Easy 96.4%, Medium beats Easy 89.3%, Easy beats random 85.4%.
 Barrage, 500 each (re-measured after the Flag-lane setup fix): Hard–Medium 53.2% (±4.4, not clearly above 50), Hard–Easy 88.0%, Medium–Easy 85.7%, Easy–random 68.2%.
@@ -50,6 +63,7 @@ Barrage, 500 each (re-measured after the Flag-lane setup fix): Hard–Medium 53.
 - "add opptional sounds you can add to the games that reflect what's happening in the game accurately as well as win celebrations, and other fun annimations to go along with everything. Just make sure everything is customizable in the settings so the user can play as preffered." (2026-10-20)
 - "could you also make sure that each of the games also have a look to them so that the game (either board or card layout) looks almost identical to how the board or card layout looks like in real life ... It should look kind of like you're looking through a camera that is connected to a user's glasses that is playing in real life (not actually, but the layout and style of everything should be similar)." (2026-10-20)
 - "I've noticed the games often have good user interfaces but could be improved especially when a scenario happens that the game might've not really thought about or whatnot. Could you focus on making each game perfect especially in scenarios that the game doesn't expect or are a little weird." (2026-10-20)
+- "for a lot of the games the cards or board layout is too small to easily see what's going on. ... Fix this so the view of what's happening and where everything is is very clear. Consider parts of the board that are dense in what's happening and if the user can reasonably see it." (2026-10-21)
 - Global rules apply: $0, no permission prompts, background-only testing, design-taste (no page scroll on main screens, phone bottom tabs, short labels, "?" explains why, choices in Settings).
 
 ## Traps

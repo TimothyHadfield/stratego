@@ -234,7 +234,7 @@
   .chk.warn .mk { background: var(--accent-warm); }
   .chk.bad .mk { background: var(--bad); }
   .heatpick { display: flex; gap: 4px; overflow-x: auto; }
-  .heatpick button { flex: none; min-width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg-soft); cursor: pointer; font-weight: 700; font-size: 12.5px; padding: 0 6px; }
+  .heatpick button { flex: 1 0 32px; min-width: 32px; height: 40px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg-soft); cursor: pointer; font-weight: 700; font-size: 12.5px; padding: 0 6px; }
   .heatpick button[aria-pressed="true"] { border-color: var(--accent-warm); color: var(--accent-warm); }
   .big { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
   .sumrow { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; }
@@ -362,6 +362,10 @@
     .grave .seat { font-size: 12px; }
     .gs b { font-size: 12px; }
     .gs:has(b) { margin-right: 14px; }
+    /* the tap-to-enlarge view is bigger than the margin's own pieces */
+    .gb i { width: 39px; height: 52px; }
+    .gb b { font-size: 15px; }
+    .gbrow { min-height: 52px; gap: 8px 10px; }
     /* the board lies on the table in front of you: its far end a little further away */
     .bframe { transform: perspective(1500px) rotateX(11deg); transform-origin: 50% 100%; }
   }
@@ -405,6 +409,8 @@
     .su { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); gap: 6px 12px; }
     .su .su-head, .su .su-grid, .su .su-tools { grid-column: 1; }
     .su .su-side { grid-column: 2; grid-row: 1 / 4; min-height: 0; overflow-y: auto; }
+    /* the narrow side column: "Test games" drops under the Flag guess instead of being squeezed off the edge */
+    .su .sumrow > .grow { flex: 1 0 auto; }
     /* study: the same idea, board left, controls and moves right */
     .study.has { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 6px 12px; }
     .study.has .st-board { grid-column: 1; grid-row: 1 / 3; align-items: flex-start; }
