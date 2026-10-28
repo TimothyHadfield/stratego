@@ -1,7 +1,7 @@
 # Stratego Lab — progress
 
 ## START HERE
-Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-27 (follow-up: Hard's Flag spot varies, online.js cache stamp; before that, improvement pass: Hard ≥70% vs Medium, Undo, saved armies, guided game + rules, My stats/Daily, installable app, big fight moments).
+Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-28 (wave 3: Rescue rule + One-time Bombs house rule, Computer speed, Videos in the Rules sheet; before that 2026-10-27 follow-up: Hard's Flag spot varies, online.js cache stamp; before that, improvement pass: Hard ≥70% vs Medium, Undo, saved armies, guided game + rules, My stats/Daily, installable app, big fight moments).
 
 ## Goal right now
 Tim's words (2026-10-20): "add risk, clue, battleship, connect four, stratego, clue, checkers, pandemic, splendor, king of tokyo, 7 wonders, and evolution to the list of games." This is the Stratego one: exact rules, odds for hidden pieces, setup analyzer, measured computers, study mode, online seats.
@@ -23,6 +23,17 @@ Tim's words (2026-10-20): "add risk, clue, battleship, connect four, stratego, c
 | Visual design pass (2026-10-20) | Done: bevelled pieces, board frame glows on your turn, readable odds badges (scale with the board), tapped enemy piece ringed, odds bars scaled to the top value with % labels, fight popup knocks the loser over, lakes without grid lines, laptop duplicate army panel removed, 40px tap targets, Study phone board 240→263 px |
 
 | Improvement pass (2026-10-27) | Done: Hard re-tuned (see Measured strength); Undo vs the computer (30 steps, not in the Daily; using it or Hint makes the game "with help", unrated); Setup "Saved" armies (6 per variant); guided first game (`js/tutorial.js` + shared `_coach`) and a Rules sheet; My stats / 10 achievements / Daily game (shared `_profile` 1.1.0 + `js/profile-str.js`); installable app (`_pwa` 1.2.0, `manifest.webmanifest`, `icons/`); key fights (Spy takes Marshal, a Marshal falls, Bomb cleared / Boom) get a bigger popup with a headline, ring and board shake; `tests/profile-str.test.js` 4 tests; `tests/pwa-check.json` 18/18 |
+
+| Wave 3 (2026-10-28) | Done: **Rescue** (classic Hasbro/MB rulebook option: reach the enemy back row with a non-Scout, bring back a captured non-Bomb onto your half; 2 each, same piece once; ends the turn) and **One-time Bombs** (house rule: Bomb removed with its victim), both Settings switches, off by default, shown on the new-game line ("Rules on: …"), passed to online rooms; rescue chooser in the info strip + "No rescue" button; computers (all 3 levels, local and online) make rescues (`Bots.chooseRescue`); Study/log show "rescued X". **Computer speed** Slow/Normal/Fast (×1.8/1/0.4 on the pause, local and online). Rules sheet: Rescue + One-time Bombs + **Videos** tab (5 YouTube links, oembed-checked 200 + title). Rules-sheet links ink-blue on the cream paper. Tests: `tests/variants.test.js` 8, `tests/variants-ui.test.mjs` 5 (WebKit; all 5 fail on 91333aa) |
+
+## Measured with the new rules (2026-10-28, 300 games per pairing, `OPTS='{"rescue":true}' node tools/measure.js 300 classic`)
+| Rules | Hard–Medium | Hard–Easy | Medium–Easy |
+|---|---|---|---|
+| Classic + Rescue | 79.7% ±4.6 | 99.3 | 91.8 |
+| Barrage + Rescue | 74.5 ±4.9 | 96.3 | 84.0 |
+| Classic + One-time Bombs | 72.0 ±5.1 | 98.0 | 89.3 |
+| Barrage + One-time Bombs | 68.3 ±5.3 | 95.7 | 88.7 |
+Rescues are used: 57 rescues in 30 Hard-vs-Medium Classic games (26 games had one). `js/strength-data.js` unchanged (base rules; `chooseMove` untouched).
 
 ## Edge pass (2026-10-20)
 61 weird scenarios tested for real (rules in node; taps, devices and screens in headless WebKit + Chrome; online rooms on real Firebase): 41 passed as found, 16 failed and are fixed, 1 N/A (no spectators), 3 NOT verified. Regression test: `node tests/edge.test.mjs` (12 checks, WebKit, own server; `BASE=<url>` checks the live site).
@@ -80,7 +91,9 @@ What moved Hard (300-game Classic runs, ±5.5): Flag walled by Bombs on the back
 - Finished games are told apart by `gid` (made in `E.newGame`, shown in `publicView`); never key on layouts or move count again (back-to-back resigns collided).
 - `render()` catches a failed draw and drops only the saved part that tab was showing (local game, last game, or one setup). Keep new tabs inside it.
 - Game buttons ignore a tap on a *different* button within 500 ms (Ready turns into Resign under the finger). Test scripts must wait >500 ms between them.
-- Bump every changed file's `?v=` on each push. index.html: engine/data/odds/online-game/fx/table/sfx v=6, art v=7, profile/coach/tutorial/pwa v=8, bots/strength-data/app v=9 (pwa.js `data-version="9"` is the build number); worker.js imports bots v=9 and the Worker URL is v=9; online import `?v=a3d0418b` (the `_online` content stamp, see below).
+- Bump every changed file's `?v=` on each push. index.html (2026-10-28): data/odds/fx/table v=6, art v=7, profile v=8, strength-data v=9, coach/pwa v=9, engine/bots/online-game/sfx/tutorial/app v=10 (pwa.js `data-version="11"` is the build number); worker.js imports engine v=10, bots v=10 and the Worker URL is v=10;
+- Rescue: while `g.pend` is set (a piece on the enemy back row may rescue) `legalMoves` is empty and only `{type:'rescue', r, to}` / `{type:'rescue', skip:true}` is accepted; the turn passes after it. Every self-play loop (measure.js, worker.js, tests) must handle `g.pend` or it spins. Replays use `E.replayStep(g, h)` (move + its `h.rs`). `ply` does not change on a rescue; `syncFromStorage` also compares `!!pend`.
+- Patching JS through Python/bash heredocs ate `\'` twice this wave (engine, tutorial): run `node --check` after every scripted edit. Several files are CRLF; `sed -i` turns them LF (git normalises, harmless). online import `?v=a3d0418b` (the `_online` content stamp, see below).
 - Kits copied byte-for-byte (never edit here): `js/profile.js`+`css/profile.css` (_profile 1.1.0), `js/coach.js`+`css/coach.css` (_coach), `js/pwa.js`, `sw.js`, `tools/make-icons.mjs`, `tools/pwa-check.mjs` (_pwa 1.2.0). `.gitattributes` marks them `-text`.
 - Stats rules: Hint or Undo sets `local.helped` → "with help", unrated. The Daily has no Undo. Leaving a game in play (New game, Daily, Guided game, Settings Reset) resigns it = one loss; a Daily left at any phase is a loss; the guided game never counts and leaves silently. The computer waits while that question box is open.
 - The coach offer ("New to Stratego?") covers the bottom of the new-game screen and the tab bar on a first visit. Test scripts: set localStorage `coach-offer:stratego-first` = `true` first.
@@ -129,7 +142,7 @@ Opponent sounds play at 0.85 volume. Fast = 0.55× delays; Animations off = soun
 
 ## NOT verified
 - Real iPhone feel (speed of taps, safe areas) — only WebKit headless at 393 px.
-- Duel / Quick Battle, Ultimate Lightning, Rescue — skipped.
+- Duel / Quick Battle, Ultimate Lightning — skipped (other board sizes; sources disagree). Rescue built 2026-10-28.
 - ISF 11.2 exception has no real-game test data.
 - Hard's 6-world look-ahead speed on an old phone.
 - The Study board is ~263 px wide on a phone (was 240); the move list shows 2 rows. A full-width board would leave no list.
@@ -144,6 +157,8 @@ Opponent sounds play at 0.85 volume. Fast = 0.55× delays; Animations off = soun
 - Edge pass: iPhone notch in sideways (safe-area insets added, no device), page in the background 10 min, two fights within 1.25 s (timer now reset per fight), sound/effect switches flipped mid-game. A host who drops out takes ~75 s before the guest gets the room (shared `_online` STALE_MS; not changed). The "fails on old code" run for the Back/Resign and Study checks crashed node on the old build, so those two rely on the harness before-results (box stayed open; 6.5 s).
 - Edge-pass choices Tim didn't make: left tab rail when the phone is sideways; status/odds/hint/actions to the right of the board sideways; Quit/Leave ghost button before Ready; tighter phone spacing (5 px); shorter odds bars while the fight line shows; toasts let taps through; new messages "The room was closed.", "You are no longer in the room.", "This game moved on in another tab.", "Could not reach the game server. Check your connection and try again."
 - Choices Tim didn't make: no turn chime vs the computer; "big" moment only for your own Spy-takes-Marshal; draw gets no celebration; Settings panel placed after Display.
+
+- Wave 3 (2026-10-28): Rescue's rescued piece is shown to both sides, and a move *along* the enemy back row counts as reaching it (rulebook silent; see rules-check row 24). Rescue/One-time Bombs games in a real two-phone online room not played (online bot + options path tested in node only). Choices Tim didn't make: names "Rescue", "One-time Bombs", "Computer speed" (Slow ×1.8 / Fast ×0.4), the chooser wording ("Bring back a piece", "Tap a free square", "No rescue"), Medium/Hard rescue the most valuable piece (Hard places it next to the deepest intruder, else near its Flag), the 5 videos picked (Jumboplay, Triple S Games, Legendary Tactics, Fairway Stratego Videos, RTFM).
 
 ## Rejected / parked
 - ~~Opening book, bluff detector, learning computer, win-probability bar~~ — see `docs/ideas.md` (no honest data behind them).

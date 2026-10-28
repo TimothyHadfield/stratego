@@ -55,13 +55,15 @@
       scoutStrike: o.scoutStrike !== false, // a Scout may move several squares and strike in one turn
       twoSq: o.twoSq === 5 ? 5 : 3,      // most moves in a row between the same two squares
       chase: o.chase !== false,          // ISF more-squares rule against endless chasing
+      rescue: !!o.rescue,                // Rescue variation: reaching the enemy back row brings back a lost piece (2 per player)
+      bombOnce: !!o.bombOnce,            // house rule: a Bomb that goes off is removed too
     };
   }
 
   /** Who wins a fight: 'att', 'def' or 'both' (both removed). Flag fights are 'att' (game won). */
   function resolve(ar, dr, opts) {
     if (dr === FLAG) return 'att';
-    if (dr === BOMB) return ar === MINER ? 'att' : 'def';
+    if (dr === BOMB) return ar === MINER ? 'att' : opts && opts.bombOnce ? 'both' : 'def';
     if (ar === SPY && dr === MARSHAL) return 'att';
     if (ar === dr) return opts && opts.aggressor ? 'att' : 'both';
     return ar > dr ? 'att' : 'def';
@@ -94,6 +96,8 @@
       chase: null,
       hist: [],         // every move: {s, f, t, id, b?: {d, ar, dr, out}}
       cons: {},          // id -> bitmask of ranks still possible, from fights where a rank stayed hidden
+      pend: null,        // Rescue: {s, id} while a piece on the enemy back row may bring back a lost piece
+      resc: [0, 0],      // rescues made by each seat (at most 2)
       result: null,
       gid: Date.now().toString(36) + Math.random().toString(36).slice(2, 8), // tells one game from the next
     };
@@ -175,7 +179,7 @@
   /** All legal moves for a seat: [[from, to], ...]. */
   function legalMoves(g, seat) {
     const out = [];
-    if (g.phase !== 'play') return out;
+    if (g.phase !== 'play' || g.pend) return out;
     for (let sq = 0; sq < 100; sq++) pieceMoves(g, seat, sq, out);
     return out;
   }
@@ -222,7 +226,7 @@
   }
 
   function isLegal(g, seat, from, to) {
-    if (g.phase !== 'play' || from < 0 || from > 99) return false;
+    if (g.phase !== 'play' || g.pend || from < 0 || from > 99) return false;
     return pieceMoves(g, seat, from, []).some(m => m[1] === to);
   }
 
@@ -282,13 +286,65 @@
     }
     g.hist.push(rec);
     g.ply++;
+    // Rescue: a piece (not a Scout) standing on the enemy back row after its move may bring one back
+    if (g.opts.rescue && p.pos === to && Math.floor(to / 10) === (seat === 0 ? 0 : 9)) {
+      g.pend = { s: seat, id };
+      if (rescueOptions(g)) return rec;
+      g.pend = null;
+    }
+    endTurn(g, seat);
+    return rec;
+  }
+  function endTurn(g, seat) {
     g.turn = 1 - seat;
     if (!hasMove(g, g.turn)) {
       // the side to move is stuck: it loses (if neither side can move, it is a draw)
       if (!hasMove(g, seat)) finish(g, -1, 'nomoves');
       else finish(g, seat, 'nomoves');
     }
-    return rec;
+  }
+  const ownHalf = (seat, sq) => (seat === 0 ? sq >= 50 : sq < 50);
+  /** While a rescue waits: the ranks that can come back and the squares they can go to (null if none). */
+  function rescueOptions(g) {
+    const pd = g.pend;
+    if (!pd) return null;
+    const p = g.pieces[pd.id];
+    if (!p || p.r === SCOUT || p.rs || (g.resc || [0, 0])[pd.s] >= 2) return null;
+    const ranks = [];
+    for (const q of g.pieces) if (q && q.o === pd.s && q.pos < 0 && q.r !== BOMB && q.r !== FLAG && !ranks.includes(q.r)) ranks.push(q.r);
+    const squares = [];
+    for (let sq = 0; sq < 100; sq++) if (ownHalf(pd.s, sq) && !IS_LAKE[sq] && g.board[sq] < 0) squares.push(sq);
+    return ranks.length && squares.length ? { ranks, squares } : null;
+  }
+  /** Make (or skip) the waiting rescue. a: {r, to} or {skip: true}. */
+  function doRescue(g, seat, a) {
+    const pd = g.pend;
+    if (!a.skip) {
+      const r = a.r, to = a.to;
+      if (r === BOMB) throw new Error('A Bomb can\'t be rescued.');
+      if (!Number.isInteger(to) || to < 0 || to > 99 || !ownHalf(seat, to) || IS_LAKE[to]) throw new Error('Put it on an empty square on your half.');
+      if (g.board[to] >= 0) throw new Error('Put it on an empty square on your half.');
+      let id = -1;
+      for (let i = 0; i < 100; i++) { const q = g.pieces[i]; if (q && q.o === seat && q.pos < 0 && q.r === r && r !== FLAG) { id = i; break; } }
+      if (id < 0) throw new Error('No such piece to rescue.');
+      const q = g.pieces[id];
+      q.pos = to; q.rv = 1;
+      g.board[to] = id;
+      delete g.cons[id];
+      g.pieces[pd.id].rs = 1;
+      g.resc = g.resc || [0, 0];
+      g.resc[seat]++;
+      const last = g.hist[g.hist.length - 1];
+      if (last) last.rs = { r, to, id };
+    }
+    g.pend = null;
+    endTurn(g, seat);
+  }
+  /** Replay one recorded move (with its rescue, if any): the Study tab and tests rebuild games this way. */
+  function replayStep(g, h) {
+    g.turn = h.s;
+    doMove(g, h.s, h.f, h.t);
+    if (g.pend) doRescue(g, h.s, h.rs ? { r: h.rs.r, to: h.rs.to } : { skip: true });
   }
 
   /** The one entry point for every action. Mutates and returns g; throws on anything illegal.
@@ -314,9 +370,16 @@
     if (action.type === 'move') {
       if (g.phase !== 'play') throw new Error('Not playing');
       if (g.turn !== seat) throw new Error('Not your turn');
+      if (g.pend) throw new Error('Choose a piece to rescue first.');
       const { from, to } = action;
       if (!Number.isInteger(from) || !Number.isInteger(to) || !isLegal(g, seat, from, to)) throw new Error('Illegal move');
       doMove(g, seat, from, to);
+      return g;
+    }
+    if (action.type === 'rescue') {
+      if (g.phase !== 'play' || !g.pend) throw new Error('No rescue to make');
+      if (g.pend.s !== seat) throw new Error('Not your turn');
+      doRescue(g, seat, action);
       return g;
     }
     throw new Error('Bad move');
@@ -349,12 +412,14 @@
     const hist = g.hist.slice(from).map(h => {
       const o = { s: h.s, f: h.f, t: h.t, id: h.id };
       if (h.b) o.b = { d: h.b.d, ar: h.b.ar, dr: over ? g.pieces[h.b.d].r : h.b.dr, out: h.b.out };
+      if (h.rs) o.rs = { r: h.rs.r, to: h.rs.to, id: h.rs.id };
       return o;
     });
     return {
       phase: g.phase, turn: g.turn, ply: g.ply, opts: g.opts, names: g.names, gid: g.gid || null,
       ready: [!!g.layouts[0], !!g.layouts[1]],
       cells, dead, hist, histFrom: from, streak: g.streak, last: g.last, chase: g.chase, cons: over ? {} : g.cons, result: g.result,
+      pend: g.pend || null, resc: g.resc || [0, 0],
       layouts: over ? g.layouts : null,
     };
   }
@@ -368,7 +433,7 @@
       Good enough for legal moves (they never depend on hidden enemy ranks). */
   function fromView(pub, mine) {
     const g = { opts: pub.opts, phase: pub.phase, turn: pub.turn, streak: pub.streak || [null, null],
-      last: pub.last || [null, null], chase: pub.chase || null,
+      last: pub.last || [null, null], chase: pub.chase || null, pend: pub.pend || null, resc: pub.resc || [0, 0],
       board: new Array(100).fill(-1), pieces: new Array(100).fill(null) };
     const ranks = {};
     for (const [id, r] of (mine && mine.own) || []) ranks[id] = r;
@@ -409,6 +474,6 @@
     FLAG, SPY, SCOUT, MINER, SERGEANT, LIEUTENANT, CAPTAIN, MAJOR, COLONEL, GENERAL, MARSHAL, BOMB,
     NAMES, ARMIES, LAKES, IS_LAKE, DIRS, zoneOf, inZone, movable, armySize, ownK, sqOfK, layoutFromOwn, ownFromLayout, adjacent,
     cleanOpts, resolve, checkLayout, newGame, apply, toAct, legalMoves, hasMove, doMove, isLegal,
-    publicView, privateView, fromView, label, sqName,
+    publicView, privateView, fromView, label, sqName, rescueOptions, replayStep,
   };
 });

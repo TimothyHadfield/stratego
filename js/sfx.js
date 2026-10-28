@@ -74,7 +74,7 @@
         const k = a + 330;
         const { ar, dr, out: res } = h.b;
         const winnerSeat = res === 'att' ? h.s : res === 'def' ? 1 - h.s : -1;
-        if (dr === BOMB && res === 'def') {
+        if (dr === BOMB && res !== 'att') { // (One-time Bombs: both go)
           out.push({ at: k, sound: 'explosion', vol }, { at: k, anim: 'shake' }, { at: k, anim: 'flash', sq: h.t, color: '#f0b354' });
         } else if (dr === BOMB && res === 'att') {
           out.push({ at: k - 120, sound: 'defuse', vol });
@@ -90,6 +90,10 @@
         t = k + 450;
       }
     }
+
+    // Rescue: a lost piece comes back onto the board
+    const rsum = x => (x.resc ? x.resc[0] + x.resc[1] : 0);
+    if (pub.phase !== 'setup' && rsum(pub) > rsum(p0)) { out.push({ at: t, sound: 'place', vol: 1 }, { at: t, anim: 'turn' }); t += 200; }
 
     // game over: your own win or loss (a draw gets neither)
     if (pub.phase === 'over' && p0.phase !== 'over' && me >= 0 && pub.result) {
@@ -132,7 +136,7 @@
   /** Called on every draw of the game screen with the current snapshot. */
   function observe(cur, ctx) {
     const list = events(S.prev, cur);
-    S.prev = cur && cur.pub ? { pub: { gid: cur.pub.gid, phase: cur.pub.phase, ready: cur.pub.ready.slice(), hist: [], histFrom: (cur.pub.histFrom || 0) + cur.pub.hist.length }, myTurn: cur.myTurn, me: cur.me } : null;
+    S.prev = cur && cur.pub ? { pub: { gid: cur.pub.gid, phase: cur.pub.phase, ready: cur.pub.ready.slice(), hist: [], histFrom: (cur.pub.histFrom || 0) + cur.pub.hist.length, resc: (cur.pub.resc || [0, 0]).slice() }, myTurn: cur.myTurn, me: cur.me } : null;
     run(list, ctx);
     return list;
   }

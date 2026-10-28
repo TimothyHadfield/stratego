@@ -35,12 +35,15 @@ Rulebook wording is paraphrased (no rulebook text is copied).
 | 20 | Silent Defense (option): only the attacker's rank is shown | `opts.silent`, `cons` masks | J variant, W | engine test 9 |
 | 21 | Barrage: 8 pieces each — Flag, Bomb, Spy, 2 Scouts, Miner, General, Marshal — placed anywhere in your 4 rows; same rules | `ARMIES.barrage`, `checkLayout` | EC, W, ISF Barrage, J | engine test 1 (counts, total 8), online test (Barrage games) |
 | 22 | Numbering: modern Marshal 10 … Spy 1 (default); classic Marshal 1 … Scout 9, Spy S | `label` | J (modern), H (classic) | engine test 11 |
+| 24 | Rescue (option, off by default): a piece other than a Scout that ends its move (or a won attack) on the enemy back row may bring back one of its side's captured pieces, never a Bomb, onto any empty square of its own half (5 rows, no lakes); that ends the turn. At most 2 rescues per player; the same piece can't make both; skipping is allowed. The rescued piece is shown to both sides (it came back from the opponent's pile). The stuck-side check runs after the choice | `opts.rescue`, `g.pend`, `rescueOptions`, `doRescue`, `{type:'rescue', r, to}` / `{skip:true}`; Study replays with `replayStep` | H (Hasbro/MB "Rescue" variation, as summarised by rulespal.com/stratego/rulebook: "two rescues", "Scouts cannot make a rescue", "Bombs cannot be rescued", "This ends your turn") | `tests/variants.test.js` 2–5, 7–8; `tests/variants-ui.test.mjs` |
+| 25 | One-time Bombs (house rule, off by default): a Bomb that blows up is removed along with the attacker; a Miner still defuses it | `opts.bombOnce` → `resolve` gives `'both'` | ultraboardgames.com/stratego/alternative-rules.php ("Bombs blow up for good after the initial explosion") | `tests/variants.test.js` 6 |
 | 23 | Pieces you have seen stay marked in the app | app choice (shown ranks stay visible) | — | NOT a rule; tournament players must remember. Noted as an app choice. |
 
 **Replay evidence (G).** `tools/replay-gravon.js` on 5,000 archive games: 4,809 classic games replay with every move legal under ISF two-squares limit 5 and no chase rule; 1 game has a doubled move in the file; all flag results agree. With the chase rule on, 38–40 games break it (Gravon never enforced it). `tests/engine.test.js` replays a fixed 260-game sample (67,608 moves) on every run.
 
 ## NOT verified / skipped
 - **Duel / Quick Battle** (8×8 board, 10 pieces) — skipped: sources disagree on board and pieces.
-- **Ultimate Lightning**, **Rescue**, **Stratego 4-player** — skipped.
+- **Ultimate Lightning**, **Stratego 4-player** — skipped (Ultimate Lightning needs an 8×10 board and the Infiltrator; sources differ on its piece list). **Rescue** built 2026-10-28 (row 24).
+- Rescue: the rulebook doesn't say whether a piece moving *along* the enemy back row counts as "moving onto" it; the engine lets any move that ends there count. The rescued piece is shown to both sides (an app reading: physically the opponent hands it back).
 - ISF 11.2's exception is built as read from the PDF, but no tournament game record was available to test it against.
 - Hasbro 2002 says the Scout must stop before attacking; the Jumbo 2022 book lets it strike. Default follows Jumbo/ISF; the Settings switch gives the other.

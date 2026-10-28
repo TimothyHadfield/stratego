@@ -11,6 +11,7 @@
   const COLORS = ['Red', 'Blue'];
   const LEVELS = ['easy', 'medium', 'hard'];
   const LEVEL_NAME = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
+  const BOT_SPEED = { slow: 1.8, normal: 1, fast: 0.4 }; // multiplies the computer's pause before it moves
 
   // ------------------------------------------------------------------ sound & effects (js/fx.js + js/sfx.js)
   const hasFX = typeof FX !== 'undefined' && typeof StrSfx !== 'undefined';
@@ -28,7 +29,7 @@
 
   // ------------------------------------------------------------------ saved store
   const DEFAULTS = {
-    settings: { numbering: 'modern', prior: 'real', showOdds: true, scoutStrike: true, twoSq: 3, chase: true, aggressor: false, silent: false, name: '' },
+    settings: { numbering: 'modern', prior: 'real', showOdds: true, scoutStrike: true, twoSq: 3, chase: true, aggressor: false, silent: false, rescue: false, bombOnce: false, botSpeed: 'normal', name: '' },
     newGame: { mode: 'computer', level: 'medium', variant: 'classic', color: 0 },
     setups: { classic: null, barrage: null },
     armies: { classic: [], barrage: [] },
@@ -54,6 +55,9 @@
     st.settings.chase = set.chase !== false;
     st.settings.aggressor = !!set.aggressor;
     st.settings.silent = !!set.silent;
+    st.settings.rescue = !!set.rescue;
+    st.settings.bombOnce = !!set.bombOnce;
+    st.settings.botSpeed = BOT_SPEED[set.botSpeed] ? set.botSpeed : 'normal';
     st.settings.name = typeof set.name === 'string' ? set.name.slice(0, 20) : '';
     const ng = s.newGame || {};
     st.newGame.mode = ng.mode === 'online' ? 'online' : 'computer';
@@ -152,6 +156,9 @@
     scout: 'Current rules let a Scout run several squares and strike in the same turn. Some classic editions say a Scout must stop first.',
     aggressor: 'Optional old rule: when equal ranks fight, the attacker wins instead of both being removed.',
     silent: 'Optional old rule: the defender never shows its rank. You only learn whether you won or lost.',
+    rescue: 'Optional rule from the classic rulebook: when one of your pieces (not a Scout) moves onto the enemy\'s back row, you may bring back one of your captured pieces (not a Bomb) and put it on any empty square of your half. That ends your turn. Up to 2 rescues each, and the same piece can\'t make both.',
+    bombOnce: 'A common house rule: a Bomb that blows up is removed along with the piece that hit it. Miners still clear Bombs as usual.',
+    botSpeed: 'How long the computer pauses before it moves. The pause after a fight stays long enough to see it.',
     numbering: 'Current sets number the Marshal 10 (highest) down to Spy 1. Old US sets number the Marshal 1 down to Scout 9, Spy S.',
     guess: 'How quickly someone who knows where people usually hide the Flag would find yours: your Flag\'s place in their list of most likely squares.',
     test: 'Plays quick games with the Medium computer using your setup against Medium with real winning setups. 50% means as good as a typical winner\'s setup.',
@@ -186,11 +193,11 @@
   let local = null;
   const net = { room: null, snap: null, mod: null };
   let botTimer = null;
-  const ui = { sel: -1, focus: -1, hint: null, fight: null, lastHistLen: 0, lastKey: '', tapAt: 0, tapA: '' };
+  const ui = { sel: -1, focus: -1, hint: null, fight: null, lastHistLen: 0, lastKey: '', tapAt: 0, tapA: '', rsR: -1 };
 
   function rulesFromSettings() {
     const s = store.settings;
-    return { scoutStrike: s.scoutStrike, twoSq: s.twoSq, chase: s.chase, aggressor: s.aggressor, silent: s.silent };
+    return { scoutStrike: s.scoutStrike, twoSq: s.twoSq, chase: s.chase, aggressor: s.aggressor, silent: s.silent, rescue: s.rescue, bombOnce: s.bombOnce };
   }
 
   function snapNow() {
@@ -272,7 +279,7 @@
     const mine = local.g, g = s.local && s.local.state;
     if (g && g.gid === mine.gid) {
       const sent = x => (x.layouts && x.layouts[0] ? 1 : 0) + (x.layouts && x.layouts[1] ? 1 : 0);
-      if (g.ply === mine.ply && g.phase === mine.phase && sent(g) === sent(mine)) return false;
+      if (g.ply === mine.ply && g.phase === mine.phase && sent(g) === sent(mine) && !!g.pend === !!mine.pend) return false;
     }
     // it moved on, finished, was quit, or another game was started there: show what the other tab saved
     clearTimeout(botTimer);
@@ -314,11 +321,14 @@
       if (syncFromStorage()) { render(); scheduleComputer(); return; }
       if (!local || local.g.phase !== 'play' || local.g.turn === local.me) return;
       const bot = 1 - local.me;
-      const m = Bots.chooseMove(E.publicView(local.g), E.privateView(local.g, bot), bot, local.level, Math.random);
-      if (!m) E.apply(local.g, bot, { type: 'resign' });
-      else E.apply(local.g, bot, { type: 'move', from: m.from, to: m.to });
+      if (local.g.pend) E.apply(local.g, bot, Bots.chooseRescue(E.publicView(local.g), E.privateView(local.g, bot), bot, local.level, Math.random));
+      else {
+        const m = Bots.chooseMove(E.publicView(local.g), E.privateView(local.g, bot), bot, local.level, Math.random);
+        if (!m) E.apply(local.g, bot, { type: 'resign' });
+        else E.apply(local.g, bot, { type: 'move', from: m.from, to: m.to });
+      }
       afterLocalChange();
-    }, ui.fight ? (ui.fightBig ? 1750 : 1300) : 650);
+    }, ui.fight ? (ui.fightBig ? 1750 : 1300) : Math.round(650 * (BOT_SPEED[store.settings.botSpeed] || 1)));
   }
 
   function finishGame(result, pub, me, mode, level) {
@@ -396,7 +406,7 @@
   function loadOnline() {
     if (!onlineP) onlineP = import(new URL('js/online.js?v=a3d0418b', location.href).href).then(mod => {
       net.mod = mod;
-      net.room = mod.createOnline({ game: StrOnlineGame.game, gameId: 'stratego', botDelayMs: 700 });
+      net.room = mod.createOnline({ game: StrOnlineGame.game, gameId: 'stratego', botDelayMs: Math.round(700 * (BOT_SPEED[store.settings.botSpeed] || 1)) });
       net.room.on('change', snap => {
         const was = net.snap;
         net.snap = snap;
@@ -681,6 +691,13 @@
     if (ui.hint) { ui.hint = null; clearTimeout(ui.hintTimer); }
     const c = snap.pub.cells[sq];
     const me = snap.mySeat;
+    // Rescue: a lost piece was picked; a tap on a free square of your half puts it there
+    const rs = rescueFor(snap);
+    if (rs) {
+      if (ui.rsR >= 0 && rs.squares.includes(sq)) { const r = ui.rsR; ui.rsR = -1; act({ type: 'rescue', r, to: sq }); return; }
+      if (ui.rsR < 0) toast('First pick the piece to bring back, or No rescue.');
+      return;
+    }
     if (ui.sel >= 0 && snap.myTurn) {
       const legal = legalFor(snap);
       if (legal.some(m => m[0] === ui.sel && m[1] === sq)) {
@@ -722,6 +739,12 @@
       '<button aria-pressed="' + (String(val) === String(value)) + '" data-val="' + val + '">' + text + (sub ? '<small>' + sub + '</small>' : '') + '</button>').join('') + '</div>';
   }
 
+  /** One line for the new-game screen: which optional rules are on (they are switched in Settings). */
+  function rulesOnText() {
+    const s = store.settings;
+    const on = [s.aggressor && 'Aggressor Advantage', s.silent && 'Silent Defense', s.rescue && 'Rescue', s.bombOnce && 'One-time Bombs', !s.scoutStrike && 'Scout stops first'].filter(Boolean);
+    return on.length ? 'Rules on: <b>' + esc(on.join(', ')) + '</b> (Settings).' : 'Rules switches are in Settings.';
+  }
   function renderNewGame(v) {
     const ng = store.newGame;
     const rec = store.record;
@@ -744,7 +767,7 @@
       '</div>' +
       (window.Profile ? '<div class="row extras"><button class="btn small grow pf-open" data-a="me">' + Profile.avatarSVG(Profile.avatar, 24) + 'My stats</button>' +
         '<button class="btn small grow" data-a="daily">Daily game</button>' + (window.COACH ? '<button class="btn small grow" data-a="rules">Rules</button>' : '') + '</div>' : '') +
-      '<div class="muted ngnote" style="font-size:12.5px;text-align:center">Your army comes from the <b>Setup</b> tab. Rules switches are in Settings.</div>' +
+      '<div class="muted ngnote" style="font-size:12.5px;text-align:center">Your army comes from the <b>Setup</b> tab. ' + rulesOnText() + '</div>' +
       '</div>';
     offerTutorial();
     v.onclick = e => {
@@ -798,11 +821,11 @@
     if (!h) return '';
     const who = h.s === me ? 'You' : 'They';
     const from = E.sqName(h.f, me), to = E.sqName(h.t, me);
-    if (!h.b) return who + ' moved ' + from + '→' + to;
+    if (!h.b) return who + ' moved ' + from + '→' + to + (h.rs ? ', rescued ' + rankName(h.rs.r) : '');
     const ar = rankName(h.b.ar);
     const dr = h.b.dr === null ? 'a hidden piece' : rankName(h.b.dr);
     const res = h.b.out === 'both' ? 'both lost' : h.b.out === 'att' ? ar + ' won' : ar + ' lost';
-    return who + ': ' + ar + ' hit ' + dr + ' — ' + res;
+    return who + ': ' + ar + ' hit ' + dr + ' — ' + res + (h.rs ? ', rescued ' + rankName(h.rs.r) : '');
   }
 
   function resultText(res, me) {
@@ -835,8 +858,8 @@
     } else if (pub.phase === 'over') {
       status = resultText(pub.result, me);
     } else {
-      status = myTurn ? 'Your move' : (snap.mode === 'local' ? 'Computer is thinking…' : esc((snap.seats[pub.turn] || {}).name || COLORS[pub.turn]) + ' to move');
-      sub = lastMoveText(pub, me);
+      status = myTurn ? (pub.pend ? 'Rescue a piece?' : 'Your move') : (snap.mode === 'local' ? 'Computer is thinking…' : esc((snap.seats[pub.turn] || {}).name || COLORS[pub.turn]) + ' to move');
+      sub = myTurn && pub.pend ? 'You reached their back row' : lastMoveText(pub, me);
     }
     const color = me >= 0 ? (me ? 'var(--blue)' : 'var(--red)') : 'var(--muted)';
     const waiting = pub.phase === 'play' && !myTurn;
@@ -846,7 +869,7 @@
     // line stays one short line and the board gets that height
     const portrait = window.innerWidth < 900 && !LANDSCAPE.matches;
     const icons = pub.phase === 'play' ? '<button class="icon-btn" data-a="odds" aria-pressed="' + store.settings.showOdds + '" title="Odds on pieces"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></button>' +
-        '<button class="icon-btn" data-a="hint" title="Hint"' + (myTurn ? '' : ' disabled') + '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg></button>' : '';
+        '<button class="icon-btn" data-a="hint" title="Hint"' + (myTurn && !pub.pend ? '' : ' disabled') + '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg></button>' : '';
     setHTML($('#g-status'), '<div class="turnchip' + (pub.phase === 'play' && myTurn ? ' mine' : '') + '"><span class="dot' + (waiting ? ' pulse' : '') + '" style="background:' + (pub.phase === 'play' ? (pub.turn ? 'var(--blue)' : 'var(--red)') : color) + '"></span><span class="st">' + status + '</span><span class="sub">' + esc(sub) + '</span></div>' +
       (snap.mode === 'online' && snap.code ? '<span class="muted" style="font-size:12px">' + esc(snap.code) + '</span>' : '') +
       (portrait ? '' : icons));
@@ -880,6 +903,9 @@
         }
       }
       if (ui.hint && pub.phase === 'play') dests = new Set([ui.hint.to]);
+      const rs = rescueFor(snap);
+      if (!rs) ui.rsR = -1;
+      else if (ui.rsR >= 0) dests = new Set(rs.squares);
       const lastH = pub.hist[pub.hist.length - 1];
       const truth = pub.phase === 'over' && pub.layouts ? truthFromLayouts(pub.layouts) : null;
       drawPieces(bw, pub, snap.mine, me, { odds, showOdds: store.settings.showOdds, sel: ui.hint ? ui.hint.from : ui.sel, dests, badges, focus: ui.focus,
@@ -984,6 +1010,12 @@
     if (pub.phase === 'over') {
       return '<div class="infohead"><b>' + esc(resultText(pub.result, me)) + '</b></div><div class="muted" style="font-size:13px">Both armies are shown. Study replays the game with the odds you had at each fight.</div>';
     }
+    const rs = rescueFor(snap);
+    if (rs) {
+      const left = 2 - ((pub.resc || [0, 0])[me] || 0);
+      return '<div class="infohead"><b>' + (ui.rsR >= 0 ? 'Tap a free square' : 'Bring back a piece') + '</b><span class="muted grow">' + left + ' rescue' + (left === 1 ? '' : 's') + ' left</span>' + q('rescue') + '</div>' +
+        '<div class="ranks rescue">' + rs.ranks.map(r => '<button class="rk' + (ui.rsR === r ? ' on' : '') + '" data-a="rsr" data-r="' + r + '" aria-label="' + esc(rankName(r)) + '"><div class="mini">' + Art.piece(me, r, store.settings.numbering) + '</div><span>' + esc(rankName(r)) + '</span></button>').join('') + '</div>';
+    }
     // a focused enemy piece: its rank chances
     if (ui.focus >= 0) {
       const sq = pub.cells.findIndex(c => c && c[1] === ui.focus);
@@ -1013,6 +1045,19 @@
     return armyHtml(snap, odds).replace('Their army left', 'Their army left · tap a piece');
   }
 
+  /** The waiting rescue for me (ranks I can bring back, squares I can use), or null. */
+  function rescueFor(snap) {
+    const pub = snap && snap.pub;
+    if (!pub || pub.phase !== 'play' || !pub.pend || pub.pend.s !== snap.mySeat || !snap.myTurn) return null;
+    const own = {};
+    for (const [id, r] of snap.mine.own) own[id] = r;
+    const ranks = [];
+    for (const [o, id] of pub.dead) { const r = own[id]; if (o === snap.mySeat && r !== undefined && r !== E.BOMB && r !== E.FLAG && !ranks.includes(r)) ranks.push(r); }
+    ranks.sort((a, b) => b - a);
+    const squares = [];
+    for (let sq = 0; sq < 100; sq++) if ((snap.mySeat === 0 ? sq >= 50 : sq < 50) && !E.IS_LAKE[sq] && !pub.cells[sq]) squares.push(sq);
+    return { ranks, squares };
+  }
   function actsHtml(snap) {
     const pub = snap.pub;
     if (pub.phase === 'setup') {
@@ -1024,6 +1069,7 @@
     if (pub.phase === 'over') {
       return '<button class="btn" data-a="study">Study game</button>' + (snap.mode === 'online' ? '<button class="btn" data-a="leave">Leave room</button>' : '<button class="btn primary" data-a="newgame">New game</button>');
     }
+    if (rescueFor(snap)) return '<button class="btn primary" data-a="rskip">No rescue</button>';
     return '<button class="btn ghost" data-a="resign"' + (snap.myTurn ? '' : ' disabled') + '>Resign</button>' +
       (snap.mode === 'online' ? '<button class="btn" data-a="leave">Leave</button>'
         : local && !local.daily ? '<button class="btn" data-a="undo"' + (canUndo() ? '' : ' disabled') + '>Undo</button>' : '');
@@ -1037,6 +1083,7 @@
       const who = h.s === me ? 'You' : 'They';
       let t = who + ' ' + E.sqName(h.f, me) + '→' + E.sqName(h.t, me);
       if (h.b) t += ': ' + rankName(h.b.ar) + ' vs ' + (h.b.dr === null ? '?' : rankName(h.b.dr)) + ' — ' + (h.b.out === 'both' ? 'both out' : h.b.out === 'att' ? 'attacker won' : 'defender won');
+      if (h.rs) t += ' · rescued ' + rankName(h.rs.r) + ' to ' + E.sqName(h.rs.to, me);
       return '<li class="' + (h.s === me ? 'me' : '') + '"><span class="n">' + n + '</span>' + esc(t) + '</li>';
     }).reverse();
     return '<ul class="log">' + rows.join('') + '</ul>';
@@ -1065,6 +1112,8 @@
         break;
       }
       case 'resign': confirmBox('Resign this game?', 'Resign', () => act({ type: 'resign' })); break;
+      case 'rsr': ui.rsR = ui.rsR === +a.dataset.r ? -1 : +a.dataset.r; sfx('click'); render(); break;
+      case 'rskip': ui.rsR = -1; act({ type: 'rescue', skip: true }); break;
       case 'undo': undo(); break;
       case 'editsetup': su.variant = snap.pub.opts.variant; su.sel = -1; setTab('setup'); break; // the army for this game's variant
       case 'ready': {
@@ -1247,7 +1296,7 @@
   function runTest(variant) {
     const own = mySetup(variant).slice();
     let w;
-    try { w = new Worker('js/worker.js?v=9'); } catch (e) { toast('Testing needs a newer browser.'); return; }
+    try { w = new Worker('js/worker.js?v=10'); } catch (e) { toast('Testing needs a newer browser.'); return; }
     su.worker = w;
     su.test = { variant, key: own.join(''), wins: 0, losses: 0, draws: 0, done: 0, n: 24 };
     w.onmessage = ev => {
@@ -1276,8 +1325,7 @@
     const states = [copy()];
     for (const h of last.hist) {
       if (g.phase !== 'play') break;
-      g.turn = h.s;
-      E.doMove(g, h.s, h.f, h.t);
+      E.replayStep(g, h); // the move, and its rescue (Rescue rule) if one was made
       states.push(copy());
     }
     return states;
@@ -1401,6 +1449,7 @@
       }
       let t = (mine ? 'You ' : 'They ') + rankName(h.b ? h.b.ar : (truthOf(last, h.id))) + ' ' + E.sqName(h.f, me) + '→' + E.sqName(h.t, me);
       if (h.b) t += ' hit ' + rankName(h.b.dr === null ? truthOf(last, h.b.d) : h.b.dr) + (h.b.out === 'both' ? ' (both out)' : (h.b.out === 'att' ? ' (won)' : ' (lost)'));
+      if (h.rs) t += ', rescued ' + rankName(h.rs.r);
       if (!mine && !h.b && !an) return rows.push('<tr data-i="' + (i + 1) + '" class="' + (st.idx === i + 1 ? 'cur' : '') + '"><td class="n muted">' + (i + 1) + '</td><td class="muted">' + esc(t) + '</td><td></td></tr>');
       rows.push('<tr data-i="' + (i + 1) + '" class="' + (st.idx === i + 1 ? 'cur' : '') + '"><td class="n muted">' + (i + 1) + '</td><td>' + esc(t) + '</td><td>' + note + '</td></tr>');
     });
@@ -1526,8 +1575,12 @@
       seg('twoSq', [[3, '3 (rulebook)'], [5, '5 (older ISF)']], s.twoSq) +
       '<div class="setrow"><div class="grow"><b>No endless chasing</b><span>Tournament more-squares rule</span></div>' + q('chase') + sw('chase', s.chase) + '</div>' +
       '<div class="setrow"><div class="grow"><b>Aggressor Advantage</b><span>Ties go to the attacker</span></div>' + q('aggressor') + sw('aggressor', s.aggressor) + '</div>' +
-      '<div class="setrow"><div class="grow"><b>Silent Defense</b><span>Defender never shows its rank</span></div>' + q('silent') + sw('silent', s.silent) + '</div></div>' +
+      '<div class="setrow"><div class="grow"><b>Silent Defense</b><span>Defender never shows its rank</span></div>' + q('silent') + sw('silent', s.silent) + '</div>' +
+      '<div class="setrow"><div class="grow"><b>Rescue</b><span>Reach their back row: bring a lost piece back</span></div>' + q('rescue') + sw('rescue', s.rescue) + '</div>' +
+      '<div class="setrow"><div class="grow"><b>One-time Bombs</b><span>House rule: a Bomb goes off once, then it\'s gone</span></div>' + q('bombOnce') + sw('bombOnce', s.bombOnce) + '</div></div>' +
       '<div class="panel"><div class="setrow"><div class="grow"><b>Computer strength</b><span>Measured, not guessed</span></div>' + q('level') + '</div>' +
+      '<div class="setrow"><div class="grow"><b>Computer speed</b><span>Its pause before each move</span></div>' + q('botSpeed') + '</div>' +
+      seg('botSpeed', [['slow', 'Slow'], ['normal', 'Normal'], ['fast', 'Fast']], s.botSpeed) +
       '<div class="setrow"><div class="grow"><b>Your record</b><span>' + LEVELS.map(l => LEVEL_NAME[l] + ' ' + store.record[l][0] + '–' + store.record[l][1]).join(' · ') + '</span></div><button class="btn small" data-a="reset">Reset all</button></div></div>' +
       '<div class="ver">Stratego Lab · original art · rules from the Jumbo rulebook and ISF tournament rules · data: gravon.de archive · <a href="../">all games</a></div></div>';
     if (hasFX) FX.renderSettings($('#fx-box'));

@@ -12,7 +12,7 @@
     id: 'stratego',
     minSeats: 2,
     maxSeats: 2,
-    // options: {variant, aggressor, silent, scoutStrike, twoSq, chase, level}
+    // options: {variant, aggressor, silent, scoutStrike, twoSq, chase, rescue, bombOnce, level}
     setup(nSeats, options, rng, seats) {
       const g = E.newGame(options, (seats || []).map((s, i) => (s && s.name) || (i ? 'Blue' : 'Red')));
       g.level = LEVELS.includes(options && options.level) ? options.level : 'medium';
@@ -32,6 +32,7 @@
         const own = Bots.chooseSetup(pub.opts.variant, level, rng);
         return { type: 'setup', layout: E.layoutFromOwn(own, seat) };
       }
+      if (pub.pend && pub.pend.s === seat) return Bots.chooseRescue(pub, ctx.mine, seat, level, rng);
       const m = Bots.chooseMove(pub, ctx.mine, seat, level, rng);
       return m ? { type: 'move', from: m.from, to: m.to } : { type: 'resign' };
     },
