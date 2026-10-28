@@ -1,6 +1,6 @@
 /* Background worker: plays quick test games for the setup analyzer without freezing the page. */
 /* global importScripts, StrEngine, StrBots, StrOdds */
-importScripts('engine.js?v=5', 'data.js?v=5', 'odds.js?v=5', 'bots.js?v=9');
+importScripts('engine.js?v=10', 'data.js?v=5', 'odds.js?v=5', 'bots.js?v=10');
 self.onmessage = function (ev) {
   const m = ev.data || {};
   if (m.type !== 'test') return;
@@ -15,6 +15,7 @@ self.onmessage = function (ev) {
     let quiet = 0;
     while (g.phase === 'play') {
       const s = g.turn;
+      if (g.pend) { E.apply(g, s, { type: 'rescue', skip: true }); continue; }
       const mv = Bots.chooseMove(E.publicView(g), E.privateView(g, s), s, 'medium', rng);
       if (!mv) { E.apply(g, s, { type: 'resign' }); break; }
       const rec = E.doMove(g, s, mv.from, mv.to);

@@ -8,16 +8,18 @@ const os = require('os');
 const E = require('../js/engine.js');
 const Bots = require('../js/bots.js');
 const Odds = require('../js/odds.js');
+const OPTS = process.env.OPTS ? JSON.parse(process.env.OPTS) : {}; // e.g. OPTS='{"rescue":true}' to measure a rule variant
 if (process.env.TUNE) Object.assign(Bots.T, JSON.parse(process.env.TUNE)); // e.g. TUNE='{"K":12}' to try Hard settings
 
 function playOne(levels, variant, seed) {
   const rng = Odds.mulberry(seed);
-  const g = E.newGame({ variant });
+  const g = E.newGame(Object.assign({ variant }, OPTS));
   for (const s of [0, 1]) E.apply(g, s, { type: 'setup', layout: E.layoutFromOwn(Bots.chooseSetup(variant, levels[s], rng), s) });
   let quiet = 0;
   while (g.phase === 'play') {
     const s = g.turn;
     const pub = E.publicView(g);
+    if (g.pend) { E.apply(g, s, Bots.chooseRescue(pub, E.privateView(g, s), s, levels[s], rng)); continue; }
     const m = Bots.chooseMove(pub, E.privateView(g, s), s, levels[s], rng);
     if (!m) { E.apply(g, s, { type: 'resign' }); break; }
     const rec = E.doMove(g, s, m.from, m.to);
@@ -72,6 +74,6 @@ if (!isMainThread) {
       out[k] = { games: t.games, firstWins: t.aWins, secondWins: t.bWins, draws: t.draws, firstScore: +(score * 100).toFixed(1),
         ci95: '+/-' + (1.96 * se * 100).toFixed(1), avgMoves: Math.round(t.plies / t.games), ends: t.ends };
     }
-    console.log(JSON.stringify({ variant, seconds: Math.round((Date.now() - t0) / 1000), results: out }, null, 1));
+    console.log(JSON.stringify({ variant, opts: OPTS, seconds: Math.round((Date.now() - t0) / 1000), results: out }, null, 1));
   }
 }

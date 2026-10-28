@@ -168,6 +168,16 @@
   .info .infohead > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .info .infohead > .q { overflow: visible; }
   .info .ranks:has(+ .fightline) .pbar { height: 18px; }
+  /* rules sheet: links readable on the cream paper; the Videos list */
+  .coach-rules-body a { color: #2a4f9e; text-decoration: underline; }
+  .coach-rules-body .vids li { margin: 7px 0; }
+  .coach-rules-body .vids .vby { font-size: 12px; opacity: .7; }
+  /* Rescue rule: pick a lost piece to bring back (one row of buttons, fits the fixed info box) */
+  .ranks.rescue { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; margin-top: 4px; }
+  .ranks.rescue .rk { background: var(--bg-soft); border: 1px solid var(--line); border-radius: 8px; padding: 4px 2px 3px; min-height: 48px; cursor: pointer; color: inherit; font: inherit; }
+  .ranks.rescue .rk .mini { max-width: 30px; }
+  .ranks.rescue .rk span { font-size: 10px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ranks.rescue .rk.on { border-color: var(--accent); background: rgba(110,168,254,.16); color: var(--accent); }
   .gacts .btn.out { flex: none; padding: 0 12px; }
   @media (max-width: 899px) {
     #v-play { padding-top: 5px; padding-bottom: 5px; }
@@ -478,21 +488,21 @@
   <section class="view" id="v-settings"></section>
 </div>
 
-<script src="js/engine.js?v=6"></script>
+<script src="js/engine.js?v=10"></script>
 <script src="js/data.js?v=6"></script>
 <script src="js/odds.js?v=6"></script>
-<script src="js/bots.js?v=9"></script>
-<script src="js/online-game.js?v=6"></script>
+<script src="js/bots.js?v=10"></script>
+<script src="js/online-game.js?v=10"></script>
 <script src="js/strength-data.js?v=9"></script>
 <script src="js/art.js?v=7"></script>
 <script src="js/fx.js?v=6"></script>
 <script src="js/table.js?v=6"></script>
-<script src="js/sfx.js?v=6"></script>
+<script src="js/sfx.js?v=10"></script>
 <script src="js/profile.js?v=8"></script>
 <script src="js/profile-str.js?v=8"></script>
 <script src="js/coach.js?v=9"></script>
-<script src="js/tutorial.js?v=8"></script>
-<script src="js/pwa.js?v=9" data-version="10"></script>
-<script src="js/app.js?v=9"></script>
+<script src="js/tutorial.js?v=10"></script>
+<script src="js/pwa.js?v=9" data-version="11"></script>
+<script src="js/app.js?v=10"></script>
 </body>
 </html>

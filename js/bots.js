@@ -482,6 +482,47 @@
     return { from: legal[pick][0], to: legal[pick][1] };
   }
 
+  /** Rescue variation: a piece of mine stands on the enemy back row and may bring back a lost piece.
+      Easy takes any lost piece to any free square; Medium and Hard take the most valuable one to a square no
+      enemy piece touches (Hard: next to the enemy piece deepest in my half, to deal with it; else near my Flag). */
+  function chooseRescue(pub, mine, seat, level, rng) {
+    const g = E.fromView(pub, mine);
+    const own = {};
+    for (const [id, r] of mine.own) own[id] = r;
+    const ranks = [];
+    for (const [o, id] of pub.dead) { const r = own[id]; if (o === seat && r !== undefined && r !== BOMB && r !== FLAG && !ranks.includes(r)) ranks.push(r); }
+    const squares = [];
+    for (let sq = 0; sq < 100; sq++) if ((seat === 0 ? sq >= 50 : sq < 50) && !E.IS_LAKE[sq] && !pub.cells[sq]) squares.push(sq);
+    if (!ranks.length || !squares.length) return { type: 'rescue', skip: true };
+    if (level === 'easy' || level === 'random') {
+      return { type: 'rescue', r: ranks[(rng() * ranks.length) | 0], to: squares[(rng() * squares.length) | 0] };
+    }
+    const myCount = new Array(12).fill(0);
+    for (const [id, r] of mine.own) if (g.pieces[id] && g.pieces[id].pos >= 0) myCount[r]++;
+    const theirLeft = new Array(12).fill(1);
+    if (pub.dead.some(d => d[0] !== seat && d[2] === MARSHAL)) theirLeft[MARSHAL] = 0;
+    const val = values(myCount, theirLeft);
+    let r = ranks[0];
+    for (const x of ranks) if (val[x] > val[r]) r = x;
+    const touched = sq => E.DIRS.some(d => {
+      const t = sq + d;
+      if (t < 0 || t > 99 || (d === -1 && sq % 10 === 0) || (d === 1 && sq % 10 === 9)) return false;
+      const c = pub.cells[t];
+      return c && c[0] !== seat;
+    });
+    const safe = squares.filter(sq => !touched(sq));
+    const pool = safe.length ? safe : squares;
+    if (level === 'medium') return { type: 'rescue', r, to: pool[(rng() * pool.length) | 0] };
+    // hard: the deepest intruder in my half, otherwise my Flag
+    const depth = sq => (seat === 0 ? Math.floor(sq / 10) : 9 - Math.floor(sq / 10)); // 5..9 = my half
+    let aim = -1, deep = -1;
+    pub.cells.forEach((c, sq) => { if (c && c[0] !== seat && depth(sq) >= 5 && depth(sq) > deep) { deep = depth(sq); aim = sq; } });
+    if (aim < 0) for (const [id, x] of mine.own) if (x === FLAG && g.pieces[id] && g.pieces[id].pos >= 0) aim = g.pieces[id].pos;
+    let best = pool[0], bs = Infinity;
+    for (const sq of pool) { const s = (aim >= 0 ? dist(sq, aim) : 0) + rng() * 0.5; if (s < bs) { bs = s; best = sq; } }
+    return { type: 'rescue', r, to: best };
+  }
+
   /** Best move for a hint (hard-level choice) plus its one-move score for each legal move. */
   function hint(pub, mine, seat, rng) {
     return chooseMove(pub, mine, seat, 'hard', rng || Math.random);
@@ -493,5 +534,5 @@
     return { legal: ctx.legal, scores: ctx.legal.map(([f, t]) => scoreMove(ctx, seat, mine, f, t, 'medium')) };
   }
 
-  return { T, chooseSetup, chooseMove, hint, rate, randomSetup, realSetup, barrageSetup, flagLaneOpen, values, myRank };
+  return { T, chooseSetup, chooseMove, chooseRescue, hint, rate, randomSetup, realSetup, barrageSetup, flagLaneOpen, values, myRank };
 });

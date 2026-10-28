@@ -1,5 +1,11 @@
 # Stratego Lab — session log
 
+## 2026-10-28 — wave 3 "just make the games better" (builder under the games manager)
+- **Asked:** Tim: "Go ahead and go through each project adding features or changing things that you think should be changed ... links to youtube videos on strategies/how to play/variations ... adding variations like common house rules ... Just make the games better." Brief: 1–2 well-documented variants (computers play them, ladder holds), 2–5 verified videos in the Rules sheet, practical settings.
+- **Built:** engine Rescue (`opts.rescue`, `g.pend`, `rescueOptions`, `doRescue`, `replayStep`) and One-time Bombs (`opts.bombOnce` in `resolve`); `Bots.chooseRescue`; online bot rescues; measure.js `OPTS=` env; app: Settings switches, rescue chooser + No rescue, Computer speed, "Rules on:" line, log/Study text; sfx: rescue sound, one-time Bomb explosion; tutorial.js Rules: Rescue, One-time Bombs, Videos tab; index.html CSS + `?v=10`, build 11.
+- **Verified:** `tests/variants.test.js` 8 (fails on the old engine at test 1); `tests/variants-ui.test.mjs` 5 WebKit (all 5 fail against main 91333aa served locally); engine 12, odds 5, sfx 7, profile-str 4, setup-variety 3, online, edge, visibility (see progress); ladder 300 games/pairing in 4 rule sets (progress "Measured with the new rules"); videos oembed 200 + matching titles; screenshots 393, 320, 659×393 (WebKit), 1280, 1440 (Chrome) of new-game, Settings, rescue chooser, Videos: 0 overflow, 0 console errors (manager scratchpad `str-shots/`).
+- **Open:** real two-phone online game with Rescue not played; Tim's calls listed in progress NOT verified.
+
 ## 2026-10-27 — improvement pass (builder under the games manager)
 - **Asked:** manager's per-game improvement brief: Hard must beat Medium ≥70% (was 53–60%), stronger computer, Undo, saved setups, guided game + rules, My stats/achievements/Daily, installable app, richer key moments, no empty bands. `js/online.js` untouched.
 - **Built:** `js/bots.js` (tuning object `T`, Flag race + guard, Hard-only setups, Barrage decoys and own weights), `js/app.js` (Undo, saved armies, Daily, tutorial, rules, stats recording, leave = loss, big fight popup), new `js/profile-str.js`, `js/tutorial.js`, kits copied (_profile 1.1.0, _coach, _pwa 1.2.0), `manifest.webmanifest`, `icons/`, `tests/profile-str.test.js`, `tests/pwa-check.json`.
