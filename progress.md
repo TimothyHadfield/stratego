@@ -81,7 +81,7 @@ What moved Hard (300-game Classic runs, ±5.5): Flag walled by Bombs on the back
 - Global rules apply: $0, no permission prompts, background-only testing, design-taste (no page scroll on main screens, phone bottom tabs, short labels, "?" explains why, choices in Settings).
 
 ## Traps
-- **Kits re-copied 2026-10-27 (kitfix):** game-coach 1.1.0 (rules tabs wrap instead of scrolling sideways; a note beside a tall target keeps title + 2 lines + buttons) and game-pwa 1.3.0 (`data-extra` on the pwa.js tag caches files loaded later by script). Copies stay byte-identical to `../_coach` / `../_pwa`.
+- **Kits re-copied 2026-10-28 (wave 3 sweep):** game-coach 1.2.0 and game-pwa 1.4.0; coach ?v=11, app ?v=11, pwa ?v=11 data-version 12 (supersedes the version list below for those files). Copies stay byte-identical to `../_coach` / `../_pwa`.
 - Gravon writes row 10 as `:`; `tools/gravon.js` handles it. Player 1 = Red; square = 99 − Gravon index.
 - Gravon enforced a two-squares limit of 5 and no chase rule; replays use those settings.
 - Headless WebKit on Windows is slow at layout (300–1000 ms per tap when the CPU is busy); Chrome is 20–90 ms. Not a phone measurement.
@@ -96,7 +96,7 @@ What moved Hard (300-game Classic runs, ±5.5): Flag walled by Bombs on the back
 - Patching JS through Python/bash heredocs ate `\'` twice this wave (engine, tutorial): run `node --check` after every scripted edit. Several files are CRLF; `sed -i` turns them LF (git normalises, harmless). online import `?v=a3d0418b` (the `_online` content stamp, see below).
 - Kits copied byte-for-byte (never edit here): `js/profile.js`+`css/profile.css` (_profile 1.1.0), `js/coach.js`+`css/coach.css` (_coach), `js/pwa.js`, `sw.js`, `tools/make-icons.mjs`, `tools/pwa-check.mjs` (_pwa 1.2.0). `.gitattributes` marks them `-text`.
 - Stats rules: Hint or Undo sets `local.helped` → "with help", unrated. The Daily has no Undo. Leaving a game in play (New game, Daily, Guided game, Settings Reset) resigns it = one loss; a Daily left at any phase is a loss; the guided game never counts and leaves silently. The computer waits while that question box is open.
-- The coach offer ("New to Stratego?") covers the bottom of the new-game screen and the tab bar on a first visit. Test scripts: set localStorage `coach-offer:stratego-first` = `true` first.
+- The coach offer ("New to Stratego?") uses game-coach 1.2.0 `place:'auto'` + `avoid` Start game (2026-10-28 sweep: clear of the tab bar and Start at 393x659, 320x568, 659x393), but it still sits over part of the new-game screen. Test scripts: set localStorage `coach-offer:stratego-first` = `true` first.
 - Phone-view screenshots of the fight popup: WebKit screenshots take ~2 s when the CPU is busy, so the popup is gone. `window.__strat.fight(h)` + `clearTimeout(__strat.ui.fight)` holds it (scratchpad script `bigshot.mjs` did this).
 - `tools/measure.js` workers use ~1.3 GB each; a 1000-game Classic run takes ~25 min with 6 workers.
 - Phone sideways (`LANDSCAPE`, max-height 540): `#app` is a row with a 64 px tab rail on the left; `#game` is a grid and `.gstatus` is `display: contents`. Test sideways screens with the rail in mind (nothing sits under a bottom bar).

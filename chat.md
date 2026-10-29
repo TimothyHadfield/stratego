@@ -1,5 +1,8 @@
 # Stratego Lab — session log
 
+## 2026-10-28 — wave 3 kit sweep (builder b3)
+- Kits game-coach 1.2.0 (offer `place:'auto'`, avoid Start game) + game-pwa 1.4.0. Verified: engine/odds/setup-variety/sfx/variants/profile-str/online/variants-ui green, pwa-check 18/18, offer clear of tab bar and Start at 393x659/320x568/659x393 (WebKit, fresh storage), settings 320 sw=cw=320 (no inner scroller wider either), no `<select>`. Seen, not fixed (outside the sweep): at 320 the Volume slider overlaps its "Volume" label in Settings. Commit 9ea3a78, live.
+
 ## 2026-10-28 — wave 3 "just make the games better" (builder under the games manager)
 - **Asked:** Tim: "Go ahead and go through each project adding features or changing things that you think should be changed ... links to youtube videos on strategies/how to play/variations ... adding variations like common house rules ... Just make the games better." Brief: 1–2 well-documented variants (computers play them, ladder holds), 2–5 verified videos in the Rules sheet, practical settings.
 - **Built:** engine Rescue (`opts.rescue`, `g.pend`, `rescueOptions`, `doRescue`, `replayStep`) and One-time Bombs (`opts.bombOnce` in `resolve`); `Bots.chooseRescue`; online bot rescues; measure.js `OPTS=` env; app: Settings switches, rescue chooser + No rescue, Computer speed, "Rules on:" line, log/Study text; sfx: rescue sound, one-time Bomb explosion; tutorial.js Rules: Rescue, One-time Bombs, Videos tab; index.html CSS + `?v=10`, build 11.
