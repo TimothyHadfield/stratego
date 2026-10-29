@@ -397,7 +397,7 @@
   }
   function offerTutorial() {
     if (!window.COACH || !tour || tour.seen() || COACH.offered('stratego-first') || local || store.last) return;
-    COACH.offer({ id: 'stratego-first', title: 'New to Stratego?', text: 'A guided first game against the Easy computer: moving, fights and the odds, one step at a time.', yes: 'Teach me', no: 'No thanks', onYes: () => startTutorial() });
+    COACH.offer({ id: 'stratego-first', title: 'New to Stratego?', text: 'A guided first game against the Easy computer: moving, fights and the odds, one step at a time.', yes: 'Teach me', no: 'No thanks', onYes: () => startTutorial(), place: 'auto', avoid: ['#v-play [data-a="start"]'] });
   }
 
   // ------------------------------------------------------------------ online
