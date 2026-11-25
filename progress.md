@@ -139,6 +139,7 @@ Opponent sounds play at 0.85 volume. Fast = 0.55× delays; Animations off = soun
 - Odds model default "Real players" (archive heat map + small floor); Barrage always flat.
 - Hard = 6 sampled worlds × 2-ply look-ahead blended with 1-ply, plus the race for both Flags, a Flag guard, Hard-only setups (Classic: Flag walled by Bombs on the back row, half the time with a decoy wall; Barrage: Flag behind the Bomb, in a back corner 60%) and, in Barrage, keeping unmoved pieces as decoys. Easy and Medium are unchanged.
 - Study keeps only the last finished game.
+- 2026-11-25 Catan-lessons audit, no code change: the ending already stays on the board (fight popup "Miner hit Flag", both armies revealed, compact result panel beside/under the board), no page scroll at 393×659 / 1280×720 (setup, play, over), computer replies ~0.8–1.9 s at Normal, colour is the player's pick. Left as is: online the host (seat 0) is always Red and moves first (changing it means a seat↔colour mapping in online-game.js, not small); no "your army left" panel (your own ranks are on the board).
 
 ## NOT verified
 - Real iPhone feel (speed of taps, safe areas) — only WebKit headless at 393 px.
