@@ -1,5 +1,11 @@
 # Stratego Lab — session log
 
+## 2026-11-27 — fit pass (builder)
+- **Asked:** Tim: "spacing, sizing, and making sure the user can actually see the full screen and everything ... go through every game". Stratego brief: setup tray + crowded late game, ranks 12px+, board as big as allowed.
+- **Built:** index.html CSS only: sideways Setup tray 1.4fr vs analysis 1fr; 320 px setup pieces fill their squares; setup tool buttons one row on phones; phone "their army left" pieces 6 px wider than their column (max 30); removed-piece counts 12 px; pwa data-version 13.
+- **Verified:** `tests/fit-ui.mjs` 17 checks (7 fail on ba434e5, all pass after); engine 12, odds 5, variants 8, sfx 7, profile-str 4, setup-variety 3, visibility 10, edge 12, variants-ui 5, online 5 green. WebKit screenshots at 393x659, 320x568, 659x393, 1280x800, 1440x900 (setup, early, late): no page scroll, no console errors.
+- **Open:** phone margin slabs still ~5.6 px ranks (tap to enlarge); 320 board ranks 10 px.
+
 ## 2026-10-28 — wave 3 kit sweep (builder b3)
 - Kits game-coach 1.2.0 (offer `place:'auto'`, avoid Start game) + game-pwa 1.4.0. Verified: engine/odds/setup-variety/sfx/variants/profile-str/online/variants-ui green, pwa-check 18/18, offer clear of tab bar and Start at 393x659/320x568/659x393 (WebKit, fresh storage), settings 320 sw=cw=320 (no inner scroller wider either), no `<select>`. Seen, not fixed (outside the sweep): at 320 the Volume slider overlaps its "Volume" label in Settings. Commit 9ea3a78, live.
 

@@ -1,7 +1,7 @@
 # Stratego Lab — progress
 
 ## START HERE
-Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-28 (wave 3: Rescue rule + One-time Bombs house rule, Computer speed, Videos in the Rules sheet; before that 2026-10-27 follow-up: Hard's Flag spot varies, online.js cache stamp; before that, improvement pass: Hard ≥70% vs Medium, Undo, saved armies, guided game + rules, My stats/Daily, installable app, big fight moments).
+Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-11-27 (fit pass: setup tray and army list sizes, `tests/fit-ui.mjs`); before that 2026-10-28 (wave 3: Rescue rule + One-time Bombs house rule, Computer speed, Videos in the Rules sheet; before that 2026-10-27 follow-up: Hard's Flag spot varies, online.js cache stamp; before that, improvement pass: Hard ≥70% vs Medium, Undo, saved armies, guided game + rules, My stats/Daily, installable app, big fight moments).
 
 ## Goal right now
 Tim's words (2026-10-20): "add risk, clue, battleship, connect four, stratego, clue, checkers, pandemic, splendor, king of tokyo, 7 wonders, and evolution to the list of games." This is the Stratego one: exact rules, odds for hidden pieces, setup analyzer, measured computers, study mode, online seats.
@@ -25,6 +25,8 @@ Tim's words (2026-10-20): "add risk, clue, battleship, connect four, stratego, c
 | Improvement pass (2026-10-27) | Done: Hard re-tuned (see Measured strength); Undo vs the computer (30 steps, not in the Daily; using it or Hint makes the game "with help", unrated); Setup "Saved" armies (6 per variant); guided first game (`js/tutorial.js` + shared `_coach`) and a Rules sheet; My stats / 10 achievements / Daily game (shared `_profile` 1.1.0 + `js/profile-str.js`); installable app (`_pwa` 1.2.0, `manifest.webmanifest`, `icons/`); key fights (Spy takes Marshal, a Marshal falls, Bomb cleared / Boom) get a bigger popup with a headline, ring and board shake; `tests/profile-str.test.js` 4 tests; `tests/pwa-check.json` 18/18 |
 
 | Wave 3 (2026-10-28) | Done: **Rescue** (classic Hasbro/MB rulebook option: reach the enemy back row with a non-Scout, bring back a captured non-Bomb onto your half; 2 each, same piece once; ends the turn) and **One-time Bombs** (house rule: Bomb removed with its victim), both Settings switches, off by default, shown on the new-game line ("Rules on: …"), passed to online rooms; rescue chooser in the info strip + "No rescue" button; computers (all 3 levels, local and online) make rescues (`Bots.chooseRescue`); Study/log show "rescued X". **Computer speed** Slow/Normal/Fast (×1.8/1/0.4 on the pause, local and online). Rules sheet: Rescue + One-time Bombs + **Videos** tab (5 YouTube links, oembed-checked 200 + title). Rules-sheet links ink-blue on the cream paper. Tests: `tests/variants.test.js` 8, `tests/variants-ui.test.mjs` 5 (WebKit; all 5 fail on 91333aa) |
+
+| Fit pass 2026-11-27 | Done (CSS only, index.html): Setup tray rank numbers sideways 10.4 → 12.4 px (tray takes 1.4 of the width, 280 → 326 px), 320 px 11.1 → 12.4 (pieces fill their squares); tool buttons one row (Saved no longer wraps alone at 320 / sideways); phone "their army left" rank 11.1 → 12.8 px (320: 8.5 → 11.1); removed-piece counts 10 → 12 px. Test `node tests/fit-ui.mjs` (17 checks, WebKit, 5 sizes; 7 fail on the old build). pwa data-version 13 |
 
 ## Measured with the new rules (2026-10-28, 300 games per pairing, `OPTS='{"rescue":true}' node tools/measure.js 300 classic`)
 | Rules | Hard–Medium | Hard–Easy | Medium–Easy |
@@ -160,6 +162,8 @@ Opponent sounds play at 0.85 volume. Fast = 0.55× delays; Animations off = soun
 - Choices Tim didn't make: no turn chime vs the computer; "big" moment only for your own Spy-takes-Marshal; draw gets no celebration; Settings panel placed after Display.
 
 - Wave 3 (2026-10-28): Rescue's rescued piece is shown to both sides, and a move *along* the enemy back row counts as reaching it (rulebook silent; see rules-check row 24). Rescue/One-time Bombs games in a real two-phone online room not played (online bot + options path tested in node only). Choices Tim didn't make: names "Rescue", "One-time Bombs", "Computer speed" (Slow ×1.8 / Fast ×0.4), the chooser wording ("Bring back a piece", "Tap a free square", "No rescue"), Medium/Hard rescue the most valuable piece (Hard places it next to the deepest intruder, else near its Flag), the 5 videos picked (Jumboplay, Triple S Games, Legendary Tactics, Fairway Stratego Videos, RTFM).
+
+- Fit pass 2026-11-27: the removed pieces in the phone board margins still print their rank at ~5.6 px (14 px slabs; 320: 4 px). Kept: a bigger margin would shrink the board (height-bound on phone); a tap opens them at 36 px and "their army left" shows what's gone. The main board at 320 px stays at 10 px ranks (the 10x10 board is 269 px there). Tim's call if he wants the margins bigger at the board's expense.
 
 ## Rejected / parked
 - ~~Opening book, bluff detector, learning computer, win-probability bar~~ — see `docs/ideas.md` (no honest data behind them).
